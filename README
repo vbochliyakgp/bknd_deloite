@@ -1,0 +1,63 @@
+vibemeter_backend/
+│
+├── main.py                  # FastAPI application entry point
+├── config.py                # Configuration settings
+├── requirements.txt         # Project dependencies
+├── Dockerfile               # For containerization
+├── docker-compose.yml       # For running the app with PostgreSQL
+│
+├── app/
+│   ├── __init__.py
+│   ├── database.py          # Database connection setup
+│   ├── dependencies.py      # FastAPI dependencies (authentication, etc.)
+│   │
+│   ├── api/
+│   │   ├── __init__.py
+│   │   ├── auth.py          # Authentication routes
+│   │   ├── chatbot.py       # Chatbot routes
+│   │   ├── hr.py            # HR dashboard routes
+│   │   └── admin.py         # Admin dashboard routes
+│   │
+│   ├── core/
+│   │   ├── __init__.py
+│   │   ├── auth.py          # Authentication logic
+│   │   ├── security.py      # Password hashing, JWT
+│   │   └── openai_client.py # OpenAI integration
+│   │
+│   ├── models/
+│   │   ├── __init__.py
+│   │   ├── user.py          # User model (admin, HR)
+│   │   ├── employee.py      # Employee model
+│   │   ├── vibemeter.py     # Vibemeter responses
+│   │   ├── chat_session.py  # Chat session model
+│   │   ├── message.py       # Message model
+│   │   ├── leave.py         # Leave data
+│   │   ├── activity.py      # Activity tracker data
+│   │   ├── performance.py   # Performance data
+│   │   └── rewards.py       # Rewards and recognition data
+│   │
+│   ├── schemas/
+│   │   ├── __init__.py
+│   │   ├── user.py          # User Pydantic schemas
+│   │   ├── employee.py      # Employee Pydantic schemas
+│   │   ├── auth.py          # Authentication schemas
+│   │   ├── chat.py          # Chat schemas
+│   │   ├── vibemeter.py     # Vibemeter schemas
+│   │   └── analytics.py     # Analytics schemas
+│   │
+│   ├── services/
+│   │   ├── __init__.py
+│   │   ├── employee.py      # Employee CRUD operations
+│   │   ├── chat.py          # Chat functionality
+│   │   ├── analytics.py     # Data analysis service
+│   │   ├── email.py         # Email service
+│   │   └── report.py        # Report generation service
+│   │
+│   └── utils/
+│       ├── __init__.py
+│       └── helper.py        # Utility functions
+
+
+
+#run server
+uvicorn main:app --host 0.0.0.0 --port 3000 --reload
