@@ -146,7 +146,7 @@ class AnalyticsService:
         # Calculate session metrics
         session_count = len(sessions)
         session_lengths = [
-            (s.end_time - s.start_time).total_seconds() / 60 if s.end_time 
+            (s.end_time - s.start_time).total_seconds() / 60 if s.end_time.scalar()
             else (datetime.now() - s.start_time).total_seconds() / 60 
             for s in sessions
         ]
@@ -210,8 +210,8 @@ class AnalyticsService:
             recommendations.append("Set up additional training or mentoring support")
         
         return EmployeeSessionAnalytics(
-            employee_id=employee.id,
-            employee_name=employee.name,
+            employee_id=employee.id.scalar(),
+            employee_name=employee.name.scalar(),
             session_count=session_count,
             average_session_length=round(avg_session_length, 2),
             most_common_emotion=most_common_emotion,
@@ -248,8 +248,8 @@ class AnalyticsService:
             negative_emotions = [v for v in recent_vibes if v.emotion_zone in [EmotionZone.FRUSTRATED, EmotionZone.SAD]]
             if len(negative_emotions) >= 3 and len(recent_vibes) >= 5:
                 alerts.append(EmployeeAlert(
-                    employee_id=employee.id,
-                    employee_name=employee.name,
+                    employee_id=employee.id.scalar(),
+                    employee_name=employee.name.scalar(),
                     alert_type="Emotional Well-being",
                     alert_reason=f"Employee has reported {len(negative_emotions)} negative emotions in the last 10 days",
                     alert_date=date.today(),
@@ -269,8 +269,8 @@ class AnalyticsService:
                 avg_hours = sum(a.hours_worked for a in recent_activity) / len(recent_activity)
                 if avg_hours > 10:
                     alerts.append(EmployeeAlert(
-                        employee_id=employee.id,
-                        employee_name=employee.name,
+                        employee_id=employee.id.scalar(),
+                        employee_name=employee.name.scalar(),
                         alert_type="Workload",
                         alert_reason=f"Employee has been averaging {avg_hours:.1f} hours/day in the last week",
                         alert_date=date.today(),
@@ -286,8 +286,8 @@ class AnalyticsService:
             months_passed = date.today().month
             if months_passed > 6 and leave_taken < 5:
                 alerts.append(EmployeeAlert(
-                    employee_id=employee.id,
-                    employee_name=employee.name,
+                    employee_id=employee.id.scalar(),
+                    employee_name=employee.name.scalar(),
                     alert_type="Leave Usage",
                     alert_reason=f"Employee has only taken {leave_taken} days of leave this year",
                     alert_date=date.today(),
@@ -305,8 +305,8 @@ class AnalyticsService:
             
             if performance and performance.rating < 3:
                 alerts.append(EmployeeAlert(
-                    employee_id=employee.id,
-                    employee_name=employee.name,
+                    employee_id=employee.id.scalar(),
+                    employee_name=employee.name.scalar(),
                     alert_type="Performance",
                     alert_reason=f"Employee has a recent performance rating of {performance.rating}",
                     alert_date=date.today(),

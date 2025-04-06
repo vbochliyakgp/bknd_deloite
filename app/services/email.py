@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 class EmailService:
     @staticmethod
     async def send_email(
-        to_email: str, subject: str, text_content: str, html_content: str = None
+        to_email: str, subject: str, text_content: str, html_content: str = ""
     ) -> bool:
         """
         Send an email using SMTP
@@ -102,7 +102,7 @@ class EmailService:
                 """
 
         return await EmailService.send_email(
-            to_email=employee.email,
+            to_email=str(employee.email),
             subject=subject,
             text_content=text_content,
             html_content=html_content,
