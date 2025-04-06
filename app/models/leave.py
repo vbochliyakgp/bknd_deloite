@@ -6,6 +6,7 @@ from sqlalchemy.sql.sqltypes import TIMESTAMP
 from app.database import Base
 import enum
 
+
 class LeaveType(str, enum.Enum):
     ANNUAL = "annual"
     SICK = "sick"
@@ -14,11 +15,13 @@ class LeaveType(str, enum.Enum):
     PATERNITY = "paternity"
     OTHER = "other"
 
+
 class LeaveStatus(str, enum.Enum):
     PENDING = "pending"
     APPROVED = "approved"
     REJECTED = "rejected"
     CANCELLED = "cancelled"
+
 
 class Leave(Base):
     __tablename__ = "leaves"
@@ -32,7 +35,9 @@ class Leave(Base):
     days_count = Column(Integer)  # Added field
     reason = Column(Text, nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
-    updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at = Column(
+        TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
     # Relationships
     employee = relationship("Employee", back_populates="leave_records")

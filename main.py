@@ -8,9 +8,10 @@ from app.database import Base, engine
 from app.config import settings
 import logging
 
-from dotenv import load_dotenv, dotenv_values 
+from dotenv import load_dotenv, dotenv_values
+
 # loading variables from .env file
-load_dotenv() 
+load_dotenv()
 
 
 # Setup logging
@@ -23,8 +24,7 @@ logging.basicConfig(
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
-    title=settings.PROJECT_NAME,
-    openapi_url=f"{settings.API_V1_STR}/openapi.json"
+    title=settings.PROJECT_NAME, openapi_url=f"{settings.API_V1_STR}/openapi.json"
 )
 
 # Set up CORS
@@ -37,18 +37,26 @@ app.add_middleware(
 )
 
 # Include routers
-app.include_router(auth.router, prefix=f"{settings.API_V1_STR}/auth", tags=["Authentication"])
-app.include_router(chatbot.router, prefix=f"{settings.API_V1_STR}/chatbot", tags=["Chatbot"])
+app.include_router(
+    auth.router, prefix=f"{settings.API_V1_STR}/auth", tags=["Authentication"]
+)
+app.include_router(
+    chatbot.router, prefix=f"{settings.API_V1_STR}/chatbot", tags=["Chatbot"]
+)
 app.include_router(hr.router, prefix=f"{settings.API_V1_STR}/hr", tags=["HR Dashboard"])
-app.include_router(admin.router, prefix=f"{settings.API_V1_STR}/admin", tags=["Admin Dashboard"])
+app.include_router(
+    admin.router, prefix=f"{settings.API_V1_STR}/admin", tags=["Admin Dashboard"]
+)
+
 
 @app.get("/")
 async def root():
     return {
         "name": settings.PROJECT_NAME,
         "version": "1.0.0",
-        "description": "API for the Vibemeter employee well-being system"
+        "description": "API for the Vibemeter employee well-being system",
     }
+
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

@@ -5,6 +5,7 @@ from sqlalchemy.sql import func
 from sqlalchemy.sql.sqltypes import TIMESTAMP
 from app.database import Base
 
+
 class Reward(Base):
     __tablename__ = "rewards_data"  # Renamed from rewards
 

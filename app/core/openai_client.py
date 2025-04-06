@@ -10,18 +10,19 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class OpenAIClient:
     def __init__(self):
         openai.api_key = settings.OPENAI_API_KEY
-        
+
     async def generate_response(
-        self, 
+        self,
         db: Session,
         employee_id: int,
-        chat_session_id: int, 
-        message: str, 
+        chat_session_id: int,
+        message: str,
         previous_messages: List[Dict[str, Any]],
-        employee_data: Dict[str, Any]
+        employee_data: Dict[str, Any],
     ) -> Dict[str, Any]:
         """
         Generate a response using OpenAI's API with employee context
@@ -31,18 +32,22 @@ class OpenAIClient:
             formatted_messages = [
                 {"role": "system", "content": self._create_system_prompt(employee_data)}
             ]
-            
+
             # Add previous messages
             for prev_msg in previous_messages:
-                role = "assistant" if prev_msg["sender"] == MessageSender.BOT else "user"
-                formatted_messages.append({"role": role, "content": prev_msg["content"]})
-            
+                role = (
+                    "assistant" if prev_msg["sender"] == MessageSender.BOT else "user"
+                )
+                formatted_messages.append(
+                    {"role": role, "content": prev_msg["content"]}
+                )
+
             # Add current message
             formatted_messages.append({"role": "user", "content": message})
-            
+
             # Call OpenAI API
             response = openai.ChatCompletion.create(
-                model="gpt-4", # or another appropriate model
+                model="gpt-4",  # or another appropriate model
                 messages=formatted_messages,
                 temperature=0.7,
                 max_tokens=500,
@@ -55,55 +60,59 @@ class OpenAIClient:
                             "properties": {
                                 "response_text": {
                                     "type": "string",
-                                    "description": "The AI response to the employee"
+                                    "description": "The AI response to the employee",
                                 },
                                 "escalation_recommended": {
                                     "type": "boolean",
-                                    "description": "Whether the employee's message indicates a situation that should be escalated to HR"
+                                    "description": "Whether the employee's message indicates a situation that should be escalated to HR",
                                 },
                                 "escalation_reason": {
                                     "type": "string",
-                                    "description": "The reason for escalation, if recommended"
+                                    "description": "The reason for escalation, if recommended",
                                 },
                                 "suggested_replies": {
                                     "type": "array",
-                                    "items": {
-                                        "type": "string"
-                                    },
-                                    "description": "Suggested quick replies for the employee to choose from"
+                                    "items": {"type": "string"},
+                                    "description": "Suggested quick replies for the employee to choose from",
                                 },
                                 "sentiment_analysis": {
                                     "type": "object",
                                     "properties": {
                                         "primary_emotion": {
                                             "type": "string",
-                                            "description": "Primary emotion detected in employee's message"
+                                            "description": "Primary emotion detected in employee's message",
                                         },
                                         "urgency_level": {
                                             "type": "integer",
-                                            "description": "Urgency level (1-5) of addressing the employee's concern"
-                                        }
-                                    }
-                                }
+                                            "description": "Urgency level (1-5) of addressing the employee's concern",
+                                        },
+                                    },
+                                },
                             },
-                            "required": ["response_text", "escalation_recommended", "suggested_replies"]
-                        }
+                            "required": [
+                                "response_text",
+                                "escalation_recommended",
+                                "suggested_replies",
+                            ],
+                        },
                     }
                 ],
-                function_call={"name": "analyze_response"}
+                function_call={"name": "analyze_response"},
             )
-            
+
             # Extract the function call results
-            function_args = json.loads(response.choices[0].message.function_call.arguments)
-            
+            function_args = json.loads(
+                response.choices[0].message.function_call.arguments
+            )
+
             return {
                 "content": function_args["response_text"],
                 "escalation_recommended": function_args["escalation_recommended"],
                 "escalation_reason": function_args.get("escalation_reason", ""),
                 "suggested_replies": function_args["suggested_replies"],
-                "sentiment_analysis": function_args.get("sentiment_analysis", {})
+                "sentiment_analysis": function_args.get("sentiment_analysis", {}),
             }
-            
+
         except Exception as e:
             logger.error(f"Error generating OpenAI response: {str(e)}")
             # Fallback response
@@ -111,22 +120,30 @@ class OpenAIClient:
                 "content": "I'm sorry, I'm having trouble processing that right now. Could you please try again or contact HR directly if you need immediate assistance?",
                 "escalation_recommended": False,
                 "escalation_reason": "",
-                "suggested_replies": ["Yes, I'll try again", "I'll contact HR directly", "Can you help me with something else?"],
-                "sentiment_analysis": {}
+                "suggested_replies": [
+                    "Yes, I'll try again",
+                    "I'll contact HR directly",
+                    "Can you help me with something else?",
+                ],
+                "sentiment_analysis": {},
             }
-    
+
     def _create_system_prompt(self, employee_data: Dict[str, Any]) -> str:
         """
         Create a system prompt with employee context
         """
         vibe_history = employee_data.get("vibe_history", [])
-        recent_vibes = ", ".join([f"{v['date']}: {v['emotion']}" for v in vibe_history[:5]]) if vibe_history else "No recent vibe data"
-        
+        recent_vibes = (
+            ", ".join([f"{v['date']}: {v['emotion']}" for v in vibe_history[:5]])
+            if vibe_history
+            else "No recent vibe data"
+        )
+
         leave_data = employee_data.get("leave_data", {})
         performance_data = employee_data.get("performance_data", {})
         activity_data = employee_data.get("activity_data", {})
         rewards_data = employee_data.get("rewards_data", {})
-        
+
         system_prompt = f"""
 You are TIA, Deloitte's empathetic AI assistant that helps employees with their well-being and engagement. 
 Your goal is to understand employee concerns, provide support, and gather insights that can improve their experience.
@@ -155,5 +172,6 @@ GUIDELINES:
 Respond conversationally but professionally, as an AI assistant representing Deloitte.
 """
         return system_prompt
+
 
 openai_client = OpenAIClient()

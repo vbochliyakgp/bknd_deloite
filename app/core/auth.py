@@ -1,4 +1,3 @@
-
 # app/core/auth.py
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
@@ -16,6 +15,7 @@ from app.models.user import UserRole
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login")
 
+
 async def get_current_user(
     db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)
 ) -> User:
@@ -32,7 +32,7 @@ async def get_current_user(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Could not validate credentials",
         )
-    
+
     user = db.query(User).filter(User.id == token_data.sub).first()
     if not user:
         raise HTTPException(
@@ -45,6 +45,7 @@ async def get_current_user(
             detail="Inactive user",
         )
     return user
+
 
 async def get_current_employee(
     db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)
@@ -62,7 +63,7 @@ async def get_current_employee(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Could not validate credentials",
         )
-    
+
     employee = db.query(Employee).filter(Employee.id == token_data.sub).first()
     if not employee:
         raise HTTPException(
@@ -76,6 +77,7 @@ async def get_current_employee(
         )
     return employee
 
+
 def get_current_active_admin(current_user: User = Depends(get_current_user)) -> User:
     """
     Check if current user is admin
@@ -86,6 +88,7 @@ def get_current_active_admin(current_user: User = Depends(get_current_user)) -> 
             detail="Not enough permissions",
         )
     return current_user
+
 
 def get_current_active_hr(current_user: User = Depends(get_current_user)) -> User:
     """

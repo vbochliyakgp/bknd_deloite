@@ -5,6 +5,7 @@ from sqlalchemy.sql import func
 from sqlalchemy.sql.sqltypes import TIMESTAMP
 from app.database import Base
 
+
 class Employee(Base):
     __tablename__ = "employees"
 
@@ -19,14 +20,18 @@ class Employee(Base):
     join_date = Column(Date)  # Added field
     profile_image = Column(String, nullable=True)  # Added field
     status = Column(String)  # Added field
-    last_vibe = Column(String, nullable=True)  # Added field 
+    last_vibe = Column(String, nullable=True)  # Added field
     is_active = Column(Boolean, default=True)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
-    updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at = Column(
+        TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
     # Relationships
     manager = relationship("Employee", remote_side=[id], backref="team_members")
-    vibe_responses = relationship("VibemeterResponse", back_populates="employee")  # Renamed from vibemeter_responses
+    vibe_responses = relationship(
+        "VibemeterResponse", back_populates="employee"
+    )  # Renamed from vibemeter_responses
     leave_records = relationship("Leave", back_populates="employee")
     activity_records = relationship("Activity", back_populates="employee")
     performance_records = relationship("Performance", back_populates="employee")

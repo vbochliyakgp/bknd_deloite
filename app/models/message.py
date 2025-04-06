@@ -6,9 +6,11 @@ from sqlalchemy.sql.sqltypes import TIMESTAMP
 from app.database import Base
 import enum
 
+
 class MessageSender(str, enum.Enum):
     BOT = "bot"
     EMPLOYEE = "employee"
+
 
 class Message(Base):
     __tablename__ = "messages"
@@ -20,6 +22,6 @@ class Message(Base):
     sentiment = Column(Float, nullable=True)  # Added field
     feedback = Column(Boolean, nullable=True)  # Added field
     timestamp = Column(TIMESTAMP(timezone=True), server_default=func.now())
-    
+
     # Relationships
     chat_session = relationship("ChatSession", back_populates="messages")

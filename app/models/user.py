@@ -5,9 +5,11 @@ from sqlalchemy.sql.sqltypes import TIMESTAMP
 from app.database import Base
 import enum
 
+
 class UserRole(str, enum.Enum):
     ADMIN = "admin"
     HR = "hr"
+
 
 class User(Base):
     __tablename__ = "users"
@@ -19,5 +21,6 @@ class User(Base):
     role = Column(Enum(UserRole))
     is_active = Column(Boolean, default=True)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
-    updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now())
-
+    updated_at = Column(
+        TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now()
+    )

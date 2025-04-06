@@ -5,6 +5,7 @@ from sqlalchemy.sql import func
 from sqlalchemy.sql.sqltypes import TIMESTAMP
 from app.database import Base
 
+
 class Activity(Base):
     __tablename__ = "activities"
 
@@ -16,7 +17,9 @@ class Activity(Base):
     emails_sent = Column(Integer)
     after_hours_work = Column(Float)  # Work done outside standard hours
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
-    updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at = Column(
+        TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
     # Relationships
     employee = relationship("Employee", back_populates="activity_records")
