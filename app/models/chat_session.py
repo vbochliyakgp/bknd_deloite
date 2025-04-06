@@ -34,3 +34,9 @@ class ChatSession(Base):
     messages = relationship(
         "Message", back_populates="chat_session", cascade="all, delete-orphan"
     )
+
+    def update(self, **kwargs):
+        """Update chat session attributes."""
+        for key, value in kwargs.items():
+            if hasattr(self, key):
+                setattr(self, key, value)

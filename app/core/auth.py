@@ -39,7 +39,7 @@ async def get_current_user(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found",
         )
-    if not user.is_active:
+    if not bool(user.is_active):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Inactive user",
@@ -70,7 +70,7 @@ async def get_current_employee(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Employee not found",
         )
-    if not employee.is_active:
+    if not bool(employee.is_active):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Inactive employee",
@@ -82,7 +82,7 @@ def get_current_active_admin(current_user: User = Depends(get_current_user)) -> 
     """
     Check if current user is admin
     """
-    if current_user.role != UserRole.ADMIN:
+    if current_user.role.value != UserRole.ADMIN.value:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions",

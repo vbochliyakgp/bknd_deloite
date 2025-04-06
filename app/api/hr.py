@@ -6,6 +6,8 @@ from datetime import date, datetime, timedelta
 import pandas as pd
 import io
 import csv
+from sqlalchemy import text
+from pydantic import TypeAdapter
 
 from app.dependencies import get_db, get_current_active_hr
 from app.models.user import User
@@ -16,6 +18,7 @@ from app.models.message import Message
 from app.models.leave import Leave, LeaveStatus, LeaveType
 from app.models.activity import Activity
 from app.models.performance import Performance
+from app.schemas.chat import MessageResponse
 from app.models.rewards import Reward
 from app.schemas.employee import EmployeeResponse, EmployeeWithAnalytics
 from app.schemas.analytics import (
@@ -65,8 +68,8 @@ async def get_all_employees(
         # Get leave data
         leave_balance = 30  # Default annual leave
         leave_taken = (
-            db.query(
-                "SELECT SUM((end_date - start_date) + 1) FROM leaves WHERE employee_id = :employee_id AND EXTRACT(YEAR FROM start_date) = EXTRACT(YEAR FROM CURRENT_DATE)",
+            db.execute(
+                text("SELECT SUM((end_date - start_date) + 1) FROM leaves WHERE employee_id = :employee_id AND EXTRACT(YEAR FROM start_date) = EXTRACT(YEAR FROM CURRENT_DATE)"),
                 {"employee_id": employee.id},
             ).scalar()
             or 0
@@ -75,23 +78,23 @@ async def get_all_employees(
 
         # Get activity data
         activity_data = (
-            db.query(
-                "SELECT AVG(hours_worked) FROM activities WHERE employee_id = :employee_id AND date >= CURRENT_DATE - INTERVAL '30 days'",
+            db.execute(
+                text("SELECT AVG(hours_worked) FROM activities WHERE employee_id = :employee_id AND date >= CURRENT_DATE - INTERVAL '30 days'"),
                 {"employee_id": employee.id},
             ).scalar()
             or 0
         )
 
         # Get performance data
-        performance = db.query(
-            "SELECT rating FROM performances WHERE employee_id = :employee_id ORDER BY review_date DESC LIMIT 1",
+        performance = db.execute(
+            text("SELECT rating FROM performances WHERE employee_id = :employee_id ORDER BY review_date DESC LIMIT 1"),
             {"employee_id": employee.id},
         ).scalar()
 
         # Get rewards count
         rewards_count = (
-            db.query(
-                "SELECT COUNT(*) FROM rewards WHERE employee_id = :employee_id",
+            db.execute(
+                text("SELECT COUNT(*) FROM rewards WHERE employee_id = :employee_id"),
                 {"employee_id": employee.id},
             ).scalar()
             or 0
@@ -166,8 +169,9 @@ async def get_employee_sessions(
             .order_by(Message.timestamp)
             .all()
         )
-
-        result.append(ChatSessionWithMessages(**session.__dict__, messages=messages))
+        message_adapter = TypeAdapter(List[MessageResponse])
+        message_responses = message_adapter.validate_python(messages)
+        result.append(ChatSessionWithMessages(**session.__dict__, messages=message_responses))
 
     return result
 
@@ -267,7 +271,7 @@ async def upload_data(
             rows_processed = await process_onboarding_data(db, df)
 
         return UploadResponse(
-            filename=file.filename,
+            filename=str(file.filename),
             dataset_type=dataset_type,
             rows_processed=rows_processed,
             success=True,

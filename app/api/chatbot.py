@@ -252,8 +252,8 @@ async def end_chat_session(
             detail="Active chat session not found",
         )
 
-    session.session_status = SessionStatus.COMPLETED
-    session.end_time = datetime.now()
+    session.update(session_status = SessionStatus.COMPLETED)
+    session.update(end_time = datetime.now())
 
     # Add farewell message
     farewell_message = Message(

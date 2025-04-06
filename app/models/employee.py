@@ -37,3 +37,9 @@ class Employee(Base):
     performance_records = relationship("Performance", back_populates="employee")
     reward_records = relationship("Reward", back_populates="employee")
     chat_sessions = relationship("ChatSession", back_populates="employee")
+
+    def update(self, **kwargs):
+        """Update user attributes."""
+        for key, value in kwargs.items():
+            if hasattr(self, key):
+                setattr(self, key, value)

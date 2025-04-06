@@ -8,7 +8,7 @@ from app.dependencies import get_db
 from app.models.user import User
 from app.models.employee import Employee
 from app.schemas.auth import Token, UserLogin, EmployeeLogin
-from app.core.security import verify_password, create_access_token
+from app.core.security import verify_password, create_access_token,get_password_hash
 from app.config import settings
 from app.core.auth import get_current_user
 
@@ -22,14 +22,14 @@ async def login_user(user_login: UserLogin, db: Session = Depends(get_db)):
     """
     user = db.query(User).filter(User.username == user_login.username).first()
 
-    if not user or not verify_password(user_login.password, user.hashed_password):
+    if not user or not verify_password(user_login.password, str(user.hashed_password)):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    if not user.is_active:
+    if not bool(user.is_active):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Inactive user",
@@ -63,7 +63,7 @@ async def login_employee(employee_login: EmployeeLogin, db: Session = Depends(ge
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    if not employee.is_active:
+    if not bool(employee.is_active):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Inactive employee",
@@ -87,8 +87,8 @@ async def login_for_access_token(
     """
     # First try to authenticate as a user (HR/Admin)
     user = db.query(User).filter(User.username == form_data.username).first()
-    if user and verify_password(form_data.password, user.hashed_password):
-        if not user.is_active:
+    if user and verify_password(form_data.password, str(user.hashed_password)):
+        if not bool(user.is_active):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Inactive user",
@@ -106,7 +106,7 @@ async def login_for_access_token(
         db.query(Employee).filter(Employee.employee_id == form_data.username).first()
     )
     if employee and verify_password(form_data.password, employee.hashed_password):
-        if not employee.is_active:
+        if not bool(employee.is_active):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Inactive employee",
@@ -137,13 +137,13 @@ async def change_password(
     """
     Change password for authenticated user
     """
-    if not verify_password(old_password, current_user.hashed_password):
+    if not verify_password(old_password, str(current_user.hashed_password)):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Incorrect password",
         )
 
-    current_user.hashed_password = get_password_hash(new_password)
+    current_user.update(hashed_password = get_password_hash(new_password))
     db.commit()
 
     return {"status": "success", "message": "Password changed successfully"}

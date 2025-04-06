@@ -24,3 +24,9 @@ class User(Base):
     updated_at = Column(
         TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+    def update(self, **kwargs):
+        """Update user attributes."""
+        for key, value in kwargs.items():
+            if hasattr(self, key):
+                setattr(self, key, value)

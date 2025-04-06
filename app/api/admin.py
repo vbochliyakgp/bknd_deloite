@@ -108,7 +108,7 @@ async def update_user(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Username already in use",
             )
-        user.username = user_update.username
+        user.update(username = user_update.username)
 
     if user_update.email is not None:
         # Check if email is being changed and if it's already in use
@@ -119,16 +119,16 @@ async def update_user(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, detail="Email already in use"
             )
-        user.email = user_update.email
+        user.update(email = user_update.email)
 
     if user_update.password is not None:
-        user.hashed_password = get_password_hash(user_update.password)
+        user.update(hashed_password = get_password_hash(user_update.password))
 
     if user_update.role is not None:
-        user.role = user_update.role
+        user.update(role = user_update.role)
 
     if user_update.is_active is not None:
-        user.is_active = user_update.is_active
+        user.update(is_active = user_update.is_active)
 
     db.commit()
     db.refresh(user)
@@ -152,7 +152,7 @@ async def delete_user(
         )
 
     # Prevent deleting yourself
-    if user.id == current_user.id:
+    if str(user.id) == str(current_user.id):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Cannot delete your own account",
@@ -276,7 +276,7 @@ async def update_employee(
 
     # Update employee fields
     if employee_update.name is not None:
-        employee.name = employee_update.name
+        employee.update(name = employee_update.name)
 
     if employee_update.email is not None:
         # Check if email is being changed and if it's already in use
@@ -289,16 +289,16 @@ async def update_employee(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, detail="Email already in use"
             )
-        employee.email = employee_update.email
+        employee.update(email = employee_update.email)
 
     if employee_update.password is not None:
         employee.hashed_password = get_password_hash(employee_update.password)
 
     if employee_update.department is not None:
-        employee.department = employee_update.department
+        employee.update(department = employee_update.department)
 
     if employee_update.position is not None:
-        employee.position = employee_update.position
+        employee.update(position = employee_update.position)
 
     if employee_update.manager_id is not None:
         # Check if manager exists
@@ -312,12 +312,12 @@ async def update_employee(
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST, detail="Manager not found"
                 )
-        employee.manager_id = (
+        employee.update(manager_id = (
             employee_update.manager_id if employee_update.manager_id > 0 else None
         )
-
+)
     if employee_update.is_active is not None:
-        employee.is_active = employee_update.is_active
+        employee.update(is_active = employee_update.is_active)
 
     db.commit()
     db.refresh(employee)
@@ -341,7 +341,7 @@ async def delete_employee(
         )
 
     # Soft delete by setting is_active to False
-    employee.is_active = False
+    employee.update(is_active = False)
     db.commit()
 
     return None
