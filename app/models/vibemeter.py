@@ -1,5 +1,5 @@
 # app/models/vibemeter.py
-from sqlalchemy import Column, String, Integer, ForeignKey, Enum, Text, Float
+from sqlalchemy import Column, String, Integer, ForeignKey, Enum, Text, Float, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from sqlalchemy.sql.sqltypes import TIMESTAMP, DATE

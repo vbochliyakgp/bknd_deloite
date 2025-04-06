@@ -1,5 +1,5 @@
 # app/models/message.py
-from sqlalchemy import Column, String, Integer, ForeignKey, Text, Enum, Float
+from sqlalchemy import Column, String, Integer, ForeignKey, Text, Enum, Float, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from sqlalchemy.sql.sqltypes import TIMESTAMP
