@@ -140,7 +140,7 @@ class AnalyticsService:
     @staticmethod
     def get_employee_analytics(
         db: Session, employee_id: int
-    ) -> EmployeeSessionAnalytics:
+    ) -> Optional[EmployeeSessionAnalytics]:
         """
         Get detailed analytics for an employee including all metrics and sessions
         """
@@ -362,7 +362,7 @@ class AnalyticsService:
                 .order_by(desc(Performance.review_date))
                 .first()
             )
-            performance=performance.scalar() if performance else None
+            performance = performance.scalar() if performance else None
             if performance and performance.rating < 3:
                 alerts.append(
                     EmployeeAlert(
