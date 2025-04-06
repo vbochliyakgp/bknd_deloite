@@ -8,6 +8,11 @@ from app.database import Base, engine
 from app.config import settings
 import logging
 
+from dotenv import load_dotenv, dotenv_values 
+# loading variables from .env file
+load_dotenv() 
+
+
 # Setup logging
 logging.basicConfig(
     level=logging.INFO,

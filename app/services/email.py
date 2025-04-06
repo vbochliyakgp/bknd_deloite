@@ -88,7 +88,7 @@ class EmailService:
                 </html>
                 """
 
-                text_content = f"""
+        text_content = f"""
         Hello {employee.name},
 
         {message}

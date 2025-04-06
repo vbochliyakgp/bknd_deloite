@@ -1,4 +1,3 @@
-
 # app/models/chat_session.py
 from sqlalchemy import Column, String, Integer, ForeignKey, Boolean, Text, Enum
 from sqlalchemy.orm import relationship
@@ -21,12 +20,11 @@ class ChatSession(Base):
     start_time = Column(TIMESTAMP(timezone=True), server_default=func.now())
     end_time = Column(TIMESTAMP(timezone=True), nullable=True)
     summary = Column(Text, nullable=True)
-    escalated_to_hr = Column(Boolean, default=False)
-    escalation_reason = Column(Text, nullable=True)
+    escalated = Column(Boolean, default=False)  # Renamed from escalated_to_hr
+    reason = Column(Text, nullable=True)  # Renamed from escalation_reason
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
     updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now())
 
     # Relationships
     employee = relationship("Employee", back_populates="chat_sessions")
     messages = relationship("Message", back_populates="chat_session", cascade="all, delete-orphan")
-

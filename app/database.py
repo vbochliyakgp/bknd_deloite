@@ -4,9 +4,19 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from app.config import settings
 
-SQLALCHEMY_DATABASE_URL = f"postgresql://{settings.POSTGRES_USER}:{settings.POSTGRES_PASSWORD}@{settings.POSTGRES_HOST}:{settings.POSTGRES_PORT}/{settings.POSTGRES_DB}"
+# Supabase connection string format
+# The format is postgresql://{user}:{password}@{host}:{port}/{database}?sslmode=require
+SQLALCHEMY_DATABASE_URL = f"postgresql://postgres:meghendralord@db.nbvwwbvarqitzeimgwfy.supabase.co:5432/postgres"
 
-engine = create_engine(SQLALCHEMY_DATABASE_URL)
+# You may need to add connection pool settings depending on your requirements
+engine = create_engine(
+    SQLALCHEMY_DATABASE_URL,
+    pool_size=5,
+    max_overflow=10,
+    pool_timeout=30,
+    pool_recycle=1800,
+)
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
@@ -18,5 +28,3 @@ def get_db():
         yield db
     finally:
         db.close()
-
-

@@ -1,6 +1,5 @@
-
 # app/models/activity.py
-from sqlalchemy import Column, Integer, ForeignKey, Float, Date
+from sqlalchemy import Column, Integer, ForeignKey, Float, Date, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from sqlalchemy.sql.sqltypes import TIMESTAMP

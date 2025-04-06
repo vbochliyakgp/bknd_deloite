@@ -1,5 +1,5 @@
 # app/config.py
-from pydantic import BaseSettings
+from pydantic_settings import BaseSettings
 from typing import Optional
 import os
 from functools import lru_cache
@@ -13,6 +13,13 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     
+    # In your config.py file
+    SUPABASE_USER: str = "postgres"  # Usually "postgres"
+    SUPABASE_PASSWORD: str = os.getenv("SUPABASE_PASSWORD", "")
+    SUPABASE_HOST: str = "db.nbvwwbvarqitzeimgwfy.supabase.co"
+    SUPABASE_PORT: str = "5432"  # Default PostgreSQL port
+    SUPABASE_DB:str = "postgres"  # Usually "postgres" in Supabase  
+      
     # PostgreSQL Settings
     POSTGRES_USER: str = os.getenv("POSTGRES_USER", "postgres")
     POSTGRES_PASSWORD: str = os.getenv("POSTGRES_PASSWORD", "password")

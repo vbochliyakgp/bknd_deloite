@@ -1,6 +1,5 @@
-
 # app/models/leave.py
-from sqlalchemy import Column, String, Integer, ForeignKey, Enum, Date
+from sqlalchemy import Column, String, Integer, ForeignKey, Enum, Date, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from sqlalchemy.sql.sqltypes import TIMESTAMP
@@ -26,14 +25,14 @@ class Leave(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     employee_id = Column(Integer, ForeignKey("employees.id"))
-    leave_type = Column(Enum(LeaveType))
     start_date = Column(Date)
     end_date = Column(Date)
+    leave_type = Column(Enum(LeaveType))
     status = Column(Enum(LeaveStatus), default=LeaveStatus.PENDING)
-    reason = Column(String, nullable=True)
+    days_count = Column(Integer)  # Added field
+    reason = Column(Text, nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
     updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now())
 
     # Relationships
     employee = relationship("Employee", back_populates="leave_records")
-

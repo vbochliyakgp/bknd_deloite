@@ -10,6 +10,7 @@ from app.models.employee import Employee
 from app.schemas.auth import Token, UserLogin, EmployeeLogin
 from app.core.security import verify_password, create_access_token
 from app.config import settings
+from app.core.auth import get_current_user
 
 router = APIRouter()
 
