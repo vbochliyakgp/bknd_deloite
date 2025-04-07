@@ -7,6 +7,7 @@ from app.dependencies import get_db, get_current_active_admin
 from app.models.employee import Employee, UserType
 from app.schemas.employee import EmployeeCreate, EmployeeResponse
 from app.core.security import get_password_hash
+from fastapi import Body
 
 router = APIRouter()
 
@@ -111,7 +112,7 @@ async def delete_user(
 @router.post("/users/{employee_id}/reset-password", response_model=EmployeeResponse)
 async def reset_employee_password(
     employee_id: str,
-    new_password: str,
+    new_password: str = Body(..., min_length=8),
     db: Session = Depends(get_db),
     current_user: Employee = Depends(get_current_active_admin),
 ):
@@ -120,7 +121,6 @@ async def reset_employee_password(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found"
         )
-
     employee.update(hashed_password = get_password_hash(new_password))
     db.commit()
     db.refresh(employee)
