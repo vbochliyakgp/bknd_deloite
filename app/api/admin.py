@@ -5,7 +5,7 @@ from typing import List
 
 from app.dependencies import get_db, get_current_active_admin
 from app.models.employee import Employee, UserType
-from app.schemas.employee import EmployeeCreate, EmployeeResponse, EmployeeUpdate
+from app.schemas.employee import EmployeeCreate, EmployeeResponse
 from app.core.security import get_password_hash
 
 router = APIRouter()
@@ -19,11 +19,17 @@ async def get_all_users(
     """
     Get all system users (HR and Admin)
     """
-    users = db.query(Employee).filter(Employee.user_type.in_([UserType.admin, UserType.hr])).all()
+    users = (
+        db.query(Employee)
+        .filter(Employee.user_type.in_([UserType.admin, UserType.hr]))
+        .all()
+    )
     return users
 
 
-@router.post("/users", response_model=EmployeeResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/users", response_model=EmployeeResponse, status_code=status.HTTP_201_CREATED
+)
 async def create_user(
     user: EmployeeCreate,
     db: Session = Depends(get_db),
@@ -75,40 +81,6 @@ async def get_user(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
         )
-
-    return user
-
-
-@router.put("/users/{user_id}", response_model=EmployeeResponse)
-async def update_user(
-    user_id: str,
-    user_update: EmployeeUpdate,
-    db: Session = Depends(get_db),
-    current_user: Employee = Depends(get_current_active_admin),
-):
-    """
-    Update a user
-    """
-    user = db.query(Employee).filter(Employee.id == user_id).first()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
-        )
-
-    if user_update.email and user_update.email != user.email:
-        if db.query(Employee).filter(Employee.email == user_update.email).first():
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail="Email already in use"
-            )
-
-    update_data = user_update.dict(exclude_unset=True)
-    if "password" in update_data:
-        user.hashed_password = get_password_hash(update_data.pop("password"))
-
-    user.update(**update_data)
-
-    db.commit()
-    db.refresh(user)
 
     return user
 

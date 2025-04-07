@@ -7,18 +7,16 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.core.security import oauth2_scheme
-from app.models.user import User
 from app.models.employee import Employee
 from app.schemas.auth import TokenPayload
 from app.config import settings
-from app.models.user import UserRole
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login")
 
 
 async def get_current_user(
     db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)
-) -> User:
+) -> Employee:
     """
     Validate token and return current user
     """
@@ -33,7 +31,7 @@ async def get_current_user(
             detail="Could not validate credentials",
         )
 
-    user = db.query(User).filter(User.id == token_data.sub).first()
+    user = db.query(Employee).filter(Employee.id == token_data.sub).first()
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -78,7 +76,9 @@ async def get_current_employee(
     return employee
 
 
-def get_current_active_admin(current_user: User = Depends(get_current_user)) -> User:
+def get_current_active_admin(
+    current_user: Employee = Depends(get_current_user),
+) -> Employee:
     """
     Check if current user is admin
     """
@@ -90,11 +90,13 @@ def get_current_active_admin(current_user: User = Depends(get_current_user)) -> 
     return current_user
 
 
-def get_current_active_hr(current_user: User = Depends(get_current_user)) -> User:
+def get_current_active_hr(
+    current_user: Employee = Depends(get_current_user),
+) -> Employee:
     """
     Check if current user is HR
     """
-    if current_user.role not in [UserRole.HR, UserRole.ADMIN]:
+    if current_user.role.value != UserRole.HR.value:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions",

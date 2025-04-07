@@ -8,7 +8,6 @@ from app.core.auth import (
     get_current_active_hr,
     get_current_employee,
 )
-from app.models.user import User
 from app.models.employee import Employee
 
 # Re-export dependencies

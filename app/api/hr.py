@@ -10,7 +10,6 @@ from sqlalchemy import text
 from pydantic import TypeAdapter
 
 from app.dependencies import get_db, get_current_active_hr
-from app.models.user import User
 from app.models.employee import Employee
 from app.models.vibemeter import VibemeterResponse, EmotionZone
 from app.models.chat_session import ChatSession
@@ -40,7 +39,7 @@ async def get_all_employees(
     department: Optional[str] = None,
     active_only: bool = True,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_hr),
+    current_user: Employee = Depends(get_current_active_hr),
 ):
     """
     Get all employees with basic analytics
@@ -69,7 +68,9 @@ async def get_all_employees(
         leave_balance = 30  # Default annual leave
         leave_taken = (
             db.execute(
-                text("SELECT SUM((end_date - start_date) + 1) FROM leaves WHERE employee_id = :employee_id AND EXTRACT(YEAR FROM start_date) = EXTRACT(YEAR FROM CURRENT_DATE)"),
+                text(
+                    "SELECT SUM((end_date - start_date) + 1) FROM leaves WHERE employee_id = :employee_id AND EXTRACT(YEAR FROM start_date) = EXTRACT(YEAR FROM CURRENT_DATE)"
+                ),
                 {"employee_id": employee.id},
             ).scalar()
             or 0
@@ -79,7 +80,9 @@ async def get_all_employees(
         # Get activity data
         activity_data = (
             db.execute(
-                text("SELECT AVG(hours_worked) FROM activities WHERE employee_id = :employee_id AND date >= CURRENT_DATE - INTERVAL '30 days'"),
+                text(
+                    "SELECT AVG(hours_worked) FROM activities WHERE employee_id = :employee_id AND date >= CURRENT_DATE - INTERVAL '30 days'"
+                ),
                 {"employee_id": employee.id},
             ).scalar()
             or 0
@@ -87,7 +90,9 @@ async def get_all_employees(
 
         # Get performance data
         performance = db.execute(
-            text("SELECT rating FROM performances WHERE employee_id = :employee_id ORDER BY review_date DESC LIMIT 1"),
+            text(
+                "SELECT rating FROM performances WHERE employee_id = :employee_id ORDER BY review_date DESC LIMIT 1"
+            ),
             {"employee_id": employee.id},
         ).scalar()
 
@@ -120,7 +125,7 @@ async def get_all_employees(
 async def get_employee_analytics(
     employee_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_hr),
+    current_user: Employee = Depends(get_current_active_hr),
 ):
     """
     Get detailed analytics for a specific employee
@@ -142,7 +147,7 @@ async def get_employee_sessions(
     employee_id: int,
     limit: int = 10,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_hr),
+    current_user: Employee = Depends(get_current_active_hr),
 ):
     """
     Get chat sessions for a specific employee
@@ -171,14 +176,17 @@ async def get_employee_sessions(
         )
         message_adapter = TypeAdapter(List[MessageResponse])
         message_responses = message_adapter.validate_python(messages)
-        result.append(ChatSessionWithMessages(**session.__dict__, messages=message_responses))
+        result.append(
+            ChatSessionWithMessages(**session.__dict__, messages=message_responses)
+        )
 
     return result
 
 
 @router.get("/alerts", response_model=List[EmployeeAlert])
 async def get_employee_alerts(
-    db: Session = Depends(get_db), current_user: User = Depends(get_current_active_hr)
+    db: Session = Depends(get_db),
+    current_user: Employee = Depends(get_current_active_hr),
 ):
     """
     Get alerts for employees who need attention
@@ -191,7 +199,7 @@ async def get_employee_alerts(
 async def send_alert_email(
     alert: SendEmailAlert,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_hr),
+    current_user: Employee = Depends(get_current_active_hr),
 ):
     """
     Send an alert email to an employee
@@ -222,7 +230,7 @@ async def send_alert_email(
 async def get_daily_report(
     report_date: Optional[date] = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_hr),
+    current_user: Employee = Depends(get_current_active_hr),
 ):
     """
     Get the daily report
@@ -239,7 +247,7 @@ async def upload_data(
     file: UploadFile = File(...),
     dataset_type: DatasetType = Form(...),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_hr),
+    current_user: Employee = Depends(get_current_active_hr),
 ):
     """
     Upload data file (CSV)
