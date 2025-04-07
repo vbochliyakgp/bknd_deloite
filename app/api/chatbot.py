@@ -32,18 +32,26 @@ async def create_chat_session(
     db: Session = Depends(get_db),
     current_employee: Employee = Depends(get_current_employee),
 ):
-    existing_session = db.query(ChatSession).filter(
-        ChatSession.employee_id == current_employee.id,
-        ChatSession.session_id == chat_session.session_id
-    ).first()
-    if existing_session:
-        return existing_session
+    if Employee.wellness_check_status=="not_started":
 
-    new_session = ChatSession(**chat_session.dict(), employee_id=current_employee.id)
-    db.add(new_session)
-    db.commit()
-    db.refresh(new_session)
-    return new_session
+        existing_session = db.query(ChatSession).filter(
+            ChatSession.employee_id == current_employee.id,
+            ChatSession.session_id == chat_session.session_id,
+            Chatsession.end_time == Null
+         ).first()
+        if existing_session:
+            return existing_session
+
+        new_session = ChatSession(**chat_session.dict(), employee_id=current_employee.id)
+
+        db.add(new_session)
+        db.commit()
+        db.refresh(new_session)
+
+        return new_session
+
+    raise HTTPException(status_code=404, detail="Employee has either completed the chat or not authorised to chat")
+    
 
 @router.get("/sessions/{session_id}", response_model=ChatSessionWithMessages)
 async def get_chat_session(
@@ -64,7 +72,7 @@ async def get_chat_session(
         messages=[MessageResponse.from_orm(m) for m in messages]
     )
 
-@router.post("/sessions/{session_id}/messages", response_model=List[MessageResponse])
+@router.post("/sessions/{session_id}/askquestion", response_model=List[MessageResponse])
 async def send_message(
     session_id: str,
     msg: MessageCreate,
@@ -121,6 +129,65 @@ async def send_message(
         MessageResponse.from_orm(user_msg),
         MessageResponse.from_orm(bot_msg)
     ]
+
+@router.post("/sessions/{session_id}/sendanswer", response_model=List[MessageResponse])
+async def send_message(
+    session_id: str,
+    msg: MessageCreate,
+    db: Session = Depends(get_db),
+    current_employee: Employee = Depends(get_current_employee),
+):
+    session = db.query(ChatSession).filter(
+        ChatSession.session_id == session_id,
+        ChatSession.employee_id == current_employee.id
+    ).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    user_msg = Message(session_id=session_id, question=msg.question, answer="")
+    db.add(user_msg)
+    db.commit()
+    db.refresh(user_msg)
+
+    history = db.query(Message).filter(Message.session_id == session_id).all()
+    prev_messages = [
+        {"question": m.question, "answer": m.answer} for m in history
+    ]
+
+    employee_data = AnalyticsService.get_employee_data(db, current_employee.id)
+    ai_response = await openai_client.generate_response(
+        db=db,
+        employee_id=current_employee.id,
+        chat_session_id=session_id,
+        message=msg.question,
+        previous_messages=prev_messages,
+        employee_data=employee_data,
+    )
+
+    bot_msg = Message(
+        session_id=session_id,
+        question=msg.question,
+        answer=ai_response["content"][0]["text"]
+    )
+    db.add(bot_msg)
+
+    if ai_response.get("escalation_recommended"):
+        session.escalated = True
+        session.suggestions = ai_response.get("escalation_reason")
+        await EmailService.send_hr_notification(
+            employee_name=str(current_employee.name),
+            session_id=session_id,
+            reason=session.suggestions,
+        )
+
+    db.commit()
+    db.refresh(bot_msg)
+
+    return [
+        MessageResponse.from_orm(user_msg),
+        MessageResponse.from_orm(bot_msg)
+    ]
+
 
 @router.post("/sessions/{session_id}/end", response_model=ChatSessionResponse)
 async def end_chat_session(
