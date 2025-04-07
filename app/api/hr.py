@@ -8,6 +8,7 @@ import io
 import csv
 from sqlalchemy import text
 from typing import Dict
+
 # Call OpenAI API using the client approach
 from openai import AsyncOpenAI
 
@@ -48,7 +49,28 @@ from app.models.employee import Employee
 from app.config import settings
 
 
+# app/routes/dashboard.py
+
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+from sqlalchemy import func, desc, case
+from datetime import datetime, timedelta
+from typing import List, Dict, Any
+
+from app.database import get_db
+from app.models.employee import Employee, WellnessCheckStatus
+from app.models.vibemeter import VibemeterData
+from app.models.activity import Activity
+from app.models.chat_session import ChatSession
+from app.schemas.dashboard import (
+    DashboardResponse,
+    VibemeterTrendData,
+    VibeDistribution,
+)
+
+
 router = APIRouter()
+
 
 @router.get("/employees", response_model=List[EmployeeWithAnalytics])
 async def get_all_employees(
@@ -93,16 +115,13 @@ async def get_all_employees(
         print(f"Leave balance for employee {employee.id}: {leave_balance}")
 
         # Get activity data
-        activity_data = (
-            db.execute(
-                text(
-                    "SELECT hours_worked FROM activity_data WHERE employee_id = :employee_id ORDER BY date DESC LIMIT 3"
-                ),
-                {"employee_id": employee.id},
-            ).all()
-            
-        )
-        #calculate average hours worked
+        activity_data = db.execute(
+            text(
+                "SELECT hours_worked FROM activity_data WHERE employee_id = :employee_id ORDER BY date DESC LIMIT 3"
+            ),
+            {"employee_id": employee.id},
+        ).all()
+        # calculate average hours worked
         if activity_data:
             activity_data = sum([row[0] for row in activity_data]) / len(activity_data)
         else:
@@ -121,7 +140,9 @@ async def get_all_employees(
         # Get rewards count
         rewards_count = (
             db.execute(
-                text("SELECT COUNT(*) FROM rewards_data WHERE employee_id = :employee_id"),
+                text(
+                    "SELECT COUNT(*) FROM rewards_data WHERE employee_id = :employee_id"
+                ),
                 {"employee_id": employee.id},
             ).scalar()
             or 0
@@ -295,7 +316,7 @@ async def send_alert_email(
     return {"status": "success", "message": "Email sent successfully"}
 
 
-# TO FIX
+
 @router.get("/reports/daily", response_model=DailyReport)
 async def get_daily_report(
     db: Session = Depends(get_db),
@@ -353,7 +374,7 @@ async def get_daily_report(
     prompt = prompt_template.replace("[TABLE DATA WILL BE INSERTED HERE]", table_data)
 
     try:
-        
+
         client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
         print("API Key:", settings.OPENAI_API_KEY)
         response = await client.chat.completions.create(
@@ -377,6 +398,145 @@ async def get_daily_report(
         raise HTTPException(
             status_code=500, detail=f"Error generating report: {str(e)}"
         )
+
+#to be fixed
+@router.get("/dashboard", response_model=DashboardResponse)
+async def get_dashboard_data(
+    db: Session = Depends(get_db),
+    current_user: Employee = Depends(get_current_active_hr),
+):
+    """
+    Get all dashboard data for the HR panel.
+    """
+    print("Fetching dashboard data...............................................")
+    # Get total employees count
+    total_employees = db.query(func.count(Employee.id)).scalar()
+
+    # Get latest vibemeter data for all employees
+    latest_vibes_subq = (
+        db.query(
+            VibemeterData.employee_id, func.max(VibemeterData.date).label("max_date")
+        )
+        .group_by(VibemeterData.employee_id)
+        .subquery()
+    )
+
+    latest_vibes = (
+        db.query(VibemeterData)
+        .join(
+            latest_vibes_subq,
+            (VibemeterData.employee_id == latest_vibes_subq.c.employee_id)
+            & (VibemeterData.date == latest_vibes_subq.c.max_date),
+        )
+        .all()
+    )
+
+    # Calculate positive and negative vibes
+    positive_vibes = sum(1 for v in latest_vibes if v.vibe_score >= 6)
+    negative_vibes = sum(1 for v in latest_vibes if v.vibe_score < 6)
+
+    # Get employees needing attention
+    employees_needing_attention = (
+        db.query(func.count(Employee.id))
+        .filter(Employee.immediate_attention == True)
+        .scalar()
+    )
+
+    # Get AI conversations that need attention
+    conversations_needing_attention = (
+        db.query(func.count(ChatSession.session_id))
+        .filter(ChatSession.escalated == True)
+        .scalar()
+    )
+
+    # Get vibemeter trend data (last 30 days)
+    last_30_days = datetime.now().date() - timedelta(days=30)
+    vibemeter_trend = (
+        db.query(
+            VibemeterData.date, func.avg(VibemeterData.vibe_score).label("avg_score")
+        )
+        .filter(VibemeterData.date >= last_30_days)
+        .group_by(VibemeterData.date)
+        .order_by(VibemeterData.date)
+        .all()
+    )
+
+    vibemeter_trend_data = [
+        {"date": entry.date.strftime("%b %d"), "score": float(entry.avg_score)}
+        for entry in vibemeter_trend
+    ]
+
+    # Get vibe distribution
+    vibe_distribution = (
+        db.query(
+            case(
+                [
+                    (VibemeterData.vibe_score <= 3, "Critical"),
+                    (VibemeterData.vibe_score <= 5, "Concerned"),
+                    (VibemeterData.vibe_score <= 7, "Neutral"),
+                    (VibemeterData.vibe_score <= 8, "Happy"),
+                    (VibemeterData.vibe_score <= 10, "Very Happy"),
+                ],
+                else_="Unknown",
+            ).label("emotion_category"),
+            func.count().label("count"),
+        )
+        .filter(VibemeterData.date >= last_30_days)
+        .group_by("emotion_category")
+        .all()
+    )
+
+    total_responses = sum(entry.count for entry in vibe_distribution)
+
+    vibe_distribution_data = {
+        "categories": [],
+        "counts": [],
+        "percentages": [],
+        "total_responses": total_responses,
+    }
+
+    for entry in vibe_distribution:
+        vibe_distribution_data["categories"].append(entry.emotion_category)
+        vibe_distribution_data["counts"].append(entry.count)
+        vibe_distribution_data["percentages"].append(
+            round(entry.count / total_responses * 100)
+        )
+
+    # Assemble the complete dashboard response
+    dashboard_data = {
+        "positive_vibes": {
+            "percentage": (
+                round(positive_vibes / total_employees * 100, 1)
+                if total_employees > 0
+                else 0
+            ),
+            "count": positive_vibes,
+        },
+        "negative_vibes": {
+            "percentage": (
+                round(negative_vibes / total_employees * 100, 1)
+                if total_employees > 0
+                else 0
+            ),
+            "count": negative_vibes,
+        },
+        "employees_needing_attention": {
+            "count": employees_needing_attention,
+            "percentage": (
+                round(employees_needing_attention / total_employees * 100, 1)
+                if total_employees > 0
+                else 0
+            ),
+        },
+        "ai_conversations": {
+            "total": db.query(func.count(ChatSession.session_id)).scalar(),
+            "needing_attention": conversations_needing_attention,
+        },
+        "vibemeter_trend": vibemeter_trend_data,
+        "vibe_distribution": vibe_distribution_data,
+    }
+
+    return dashboard_data
 
 
 def extract_risk_factors(suggestions_text: str) -> List[str]:
