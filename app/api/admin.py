@@ -19,11 +19,7 @@ async def get_all_users(
     """
     Get all system users (HR and Admin)
     """
-    users = (
-        db.query(Employee)
-        .filter(Employee.user_type.in_([UserType.admin, UserType.hr]))
-        .all()
-    )
+    users = db.query(Employee).all()
     return users
 
 

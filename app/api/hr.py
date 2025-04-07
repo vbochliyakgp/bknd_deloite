@@ -22,7 +22,7 @@ from app.models.rewards import Reward
 from app.schemas.employee import EmployeeResponse, EmployeeWithAnalytics
 from app.schemas.analytics import (
     EmployeeAlert,
-    EmployeeSessionAnalytics,
+    EmployeeSessionAnalyticsNew,
     DailyReport,
     SendEmailAlert,
 )
@@ -197,7 +197,7 @@ async def get_employee_messages(
 
 @router.get(
     "/employees/{employee_id}/analytics/{session_id}",
-    response_model=EmployeeSessionAnalytics,
+    response_model=EmployeeSessionAnalyticsNew,
 )
 async def get_employee_analytics(
     employee_id: int,
@@ -215,7 +215,22 @@ async def get_employee_analytics(
         )
 
     # TO DO: Implement detailed analytics logic
-    analytics = AnalyticsService.get_employee_analytics(db, employee_id, session_id)
+    session = db.query(ChatSession).filter(ChatSession.session_id == session_id).first()
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Session not found"
+        )
+
+    analytics = EmployeeSessionAnalyticsNew(
+        employee_id=employee_id,
+        session_id=session.session_id,
+        escalated=session.escalated,
+        summary=session.summary,
+        suggestions=session.suggestions,
+        risk_score=session.risk_score,
+        start_time=session.start_time,
+        end_time=session.end_time,
+    )
     return analytics
 
 
@@ -231,16 +246,16 @@ async def get_employee_alerts(
     return alerts
 
 
-@router.post("/alerts/email", status_code=status.HTTP_200_OK)
+@router.post("/alerts/email/{employee_id}", status_code=status.HTTP_200_OK)
 async def send_alert_email(
-    alert: SendEmailAlert,
+    employee_id: int,
     db: Session = Depends(get_db),
     current_user: Employee = Depends(get_current_active_hr),
 ):
     """
     Send an alert email to an employee
     """
-    employee = db.query(Employee).filter(Employee.id == alert.employee_id).first()
+    employee = db.query(Employee).filter(Employee.id == employee_id).first()
     if not employee:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found"
@@ -248,9 +263,7 @@ async def send_alert_email(
 
     success = await EmailService.send_employee_alert(
         db=db,
-        employee_id=alert.employee_id,
-        subject=alert.subject,
-        message=alert.message,
+        employee_id=employee_id,
     )
 
     if not success:

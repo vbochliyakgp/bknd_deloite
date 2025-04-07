@@ -1,9 +1,8 @@
-
-
 # app/schemas/analytics.py
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel
 from datetime import date
+
 
 class EmployeeAlert(BaseModel):
     employee_id: int
@@ -13,6 +12,18 @@ class EmployeeAlert(BaseModel):
     alert_date: date
     alert_severity: str
     recommended_action: str
+
+
+class EmployeeSessionAnalyticsNew(BaseModel):
+    employee_id: str
+    session_id: int
+    escalated: bool
+    summary: str
+    suggestions: str
+    risk_score: int
+    start_time: date
+    end_time: date
+
 
 class EmployeeSessionAnalytics(BaseModel):
     employee_id: int
@@ -28,6 +39,7 @@ class EmployeeSessionAnalytics(BaseModel):
     risk_factors: List[str]
     recommended_actions: List[str]
 
+
 class DailyReport(BaseModel):
     date: date
     total_employees: int
@@ -38,8 +50,3 @@ class DailyReport(BaseModel):
     at_risk_employees: int
     support_recommendations: List[str]
     department_breakdown: Dict[str, Dict[str, Any]]
-
-class SendEmailAlert(BaseModel):
-    employee_id: int
-    subject: str
-    message: str
