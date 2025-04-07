@@ -34,7 +34,8 @@ async def create_chat_session(
 ):
     existing_session = db.query(ChatSession).filter(
         ChatSession.employee_id == current_employee.id,
-        ChatSession.session_id == chat_session.session_id
+        ChatSession.session_id == chat_session.session_id,
+        Chatsession.end_time == Null
     ).first()
     if existing_session:
         return existing_session
