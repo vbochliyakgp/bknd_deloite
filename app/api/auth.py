@@ -55,11 +55,11 @@ async def login_employee(employee_login: EmployeeLogin, db: Session = Depends(ge
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # if employee.user_type != UserType.employee:#no_type_err
-    #     raise HTTPException(
-    #         status_code=status.HTTP_400_BAD_REQUEST,
-    #         detail="Invalid employee type",
-    #     )
+    if employee.user_type != UserType.employee:#no_type_err
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid employee type",
+        )
     
 
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)

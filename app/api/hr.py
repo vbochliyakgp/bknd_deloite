@@ -403,7 +403,7 @@ async def get_daily_report(
         )
 
 #to be fixed
-@router.get("/dashboard", response_model=DashboardResponse)
+@router.get("/dashboard")
 async def get_dashboard_data(
     db: Session = Depends(get_db),
     current_user: Employee = Depends(get_current_active_hr),
