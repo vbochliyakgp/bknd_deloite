@@ -2,14 +2,14 @@
 from sqlalchemy import Column, String, Integer, ForeignKey, Date, CheckConstraint
 from sqlalchemy.orm import relationship
 from app.database import Base
-
+from app.models.employee import Employee
 
 class Leave(Base):
     __tablename__ = "leaves_data"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     employee_id = Column(
-        String(10), ForeignKey("employees.id", ondelete="CASCADE"), nullable=False
+        String(10), ForeignKey(Employee.id, ondelete="CASCADE"), nullable=False
     )
     leave_type = Column(String(50), nullable=False)
     start_date = Column(Date, nullable=False)

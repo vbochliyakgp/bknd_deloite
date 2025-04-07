@@ -2,14 +2,14 @@
 from sqlalchemy import Column, Integer, ForeignKey, String, Date
 from sqlalchemy.orm import relationship
 from app.database import Base
-
+from app.models.employee import Employee
 
 class Activity(Base):
     __tablename__ = "activity_data"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     employee_id = Column(
-        String(10), ForeignKey("employees.id", ondelete="CASCADE"), nullable=False
+        String(10), ForeignKey(Employee.id, ondelete="CASCADE"), nullable=False
     )
     date = Column(Date, nullable=False)
     hours_worked = Column(Integer, nullable=False)

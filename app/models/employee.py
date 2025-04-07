@@ -31,7 +31,7 @@ class WellnessCheckStatus(enum.Enum):
 
 
 class Employee(Base):
-    __tablename__ = "employees"
+    __tablename__ = "employeess"
 
     id = Column(String(10), primary_key=True)
     name = Column(String(100), nullable=False)

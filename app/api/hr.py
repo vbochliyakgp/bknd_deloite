@@ -101,7 +101,7 @@ async def get_all_employees(
         result.append(
             EmployeeWithAnalytics(
                 **employee.__dict__,
-                recent_vibe=latest_vibe.emotion_zone if latest_vibe else None,
+                recent_vibe=str(latest_vibe.emotion_zone) if latest_vibe else None,
                 leave_balance=leave_balance,
                 average_hours_worked=round(activity_data, 1),
                 latest_performance_rating=performance,
@@ -140,10 +140,10 @@ async def get_employee_sessions(
     for session in sessions:
         result.append(
             ChatSessionBaseNew(
-                employee_id=session.employee_id,
-                session_id=session.session_id,
-                start_time=session.start_time,
-                end_time=session.end_time,
+                employee_id=int(session.employee_id.scalar()),
+                session_id=int(session.session_id.scalar()),
+                start_time=session.start_time.scalar(),
+                end_time=session.end_time.scalar(),
             )
         )
 
@@ -186,10 +186,10 @@ async def get_employee_messages(
     for i, message in enumerate(messages):
         result.append(
             MessageBaseNew(
-                session_id=message.session_id,
+                session_id=int(message.session_id.scalar()),
                 serial_number=i + 1,
-                question=message.question,
-                answer=message.answer,
+                question=message.question.scalar(),
+                answer=message.answer.scalar(),
             )
         )
 
@@ -224,13 +224,13 @@ async def get_employee_analytics(
 
     analytics = EmployeeSessionAnalyticsNew(
         employee_id=employee_id,
-        session_id=session.session_id,
-        escalated=session.escalated,
-        summary=session.summary,
-        suggestions=session.suggestions,
-        risk_score=session.risk_score,
-        start_time=session.start_time,
-        end_time=session.end_time,
+        session_id=int(session.session_id.scalar()),
+        escalated=session.escalated.scalar(),
+        summary=session.summary.scalar(),
+        suggestions=session.suggestions.scalar(),
+        risk_score=session.risk_score.scalar(),
+        start_time=session.start_time.scalar(),
+        end_time=session.end_time.scalar(),
     )
     return analytics
 
@@ -382,7 +382,7 @@ async def upload_data(
     return UploadResponse(at_risk_employees=at_risk_employees)
 
 
-async def analyze_vibemeter(dfs: Dict[pd.DataFrame]) -> List[Dict[str, str]]:
+async def analyze_vibemeter(dfs: Dict[str, pd.DataFrame]) -> List[Dict[str, str]]:
     """
     Analyze vibemeter data and return employees who need attention
     """

@@ -3,13 +3,13 @@ from sqlalchemy import Column, String, Integer, ForeignKey, Boolean, Text, DateT
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.database import Base
-
+from app.models.employee import Employee
 
 class ChatSession(Base):
     __tablename__ = "chat_sessions"
 
     employee_id = Column(
-        String(10), ForeignKey("employees.id", ondelete="CASCADE"), nullable=False
+        String(10), ForeignKey(Employee.id, ondelete="CASCADE"), nullable=False
     )
     session_id = Column(String(10), primary_key=True)
     start_time = Column(DateTime(timezone=True), default=func.now())

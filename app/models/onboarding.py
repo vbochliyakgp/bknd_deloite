@@ -1,14 +1,14 @@
 from sqlalchemy import Column, Integer, String, Date, Boolean, ForeignKey
 from sqlalchemy.orm import relationship
 from app.database import Base
-
+from app.models.employee import Employee
 
 class Onboarding(Base):
     __tablename__ = "onboarding_data"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     employee_id = Column(
-        String(10), ForeignKey("employees.id", ondelete="CASCADE"), nullable=False
+        String(10), ForeignKey(Employee.id, ondelete="CASCADE"), nullable=False
     )
     onboarding_feedback = Column(String(50))
     joining_date = Column(Date, nullable=False)

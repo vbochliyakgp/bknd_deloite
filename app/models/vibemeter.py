@@ -2,6 +2,7 @@
 from sqlalchemy import Column, String, Integer, ForeignKey, CheckConstraint, Date
 from sqlalchemy.orm import relationship
 from app.database import Base
+from app.models.employee import Employee
 
 
 class VibemeterData(Base):
@@ -9,7 +10,7 @@ class VibemeterData(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     employee_id = Column(
-        String(10), ForeignKey("employees.id", ondelete="CASCADE"), nullable=False
+        String(10), ForeignKey(Employee.id, ondelete="CASCADE"), nullable=False
     )
     date = Column(Date, nullable=False)
     vibe_score = Column(Integer, nullable=False)
