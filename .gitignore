@@ -1,3 +1,17 @@
 venv
 .env
 __pycache__
+.vscode
+bin/
+*.pyc
+*.pyo
+*.pyd
+*.db
+*.sqlite3
+*.log
+audios/message_0.json
+audios/message_0.mp3
+audios/message_0.wav
+audios/message_1.json
+audios/message_1.mp3
+audios/message_1.wav

@@ -1,3 +1,6 @@
+# use python3.11
+
+
 vibemeter_backend/
 │
 ├── main.py                  # FastAPI application entry point
@@ -61,3 +64,56 @@ vibemeter_backend/
 
 #run server
 uvicorn main:app --host 0.0.0.0 --port 3000 --reload
+
+
+4. Make sure you have FFmpeg installed:
+```bash
+# On Ubuntu/Debian
+sudo apt-get install ffmpeg
+
+# On macOS with Homebrew
+brew install ffmpeg
+
+# On Windows
+# Download from https://ffmpeg.org/download.html
+```
+
+5. Download Rhubarb Lip Sync from [https://github.com/DanielSWolf/rhubarb-lip-sync/releases](https://github.com/DanielSWolf/rhubarb-lip-sync/releases) and place the executable in the `bin` directory.
+/*
+
+## Error with Missing Resources
+
+If you're seeing errors like:
+```
+[Error] "acmod.c", line 82: Folder '..../bin/res/sphinx/acoustic-model' does not contain acoustic model definition 'mdef'
+```
+
+This means Rhubarb is missing its required acoustic model resources.
+
+## Proper Installation Steps
+
+1. **Download the complete Rhubarb package** from the official repository:
+   - Go to: https://github.com/DanielSWolf/rhubarb-lip-sync/releases
+   - Download the appropriate release for your OS (Linux, Windows, macOS)
+
+2. **Extract the complete package**, which should include:
+   - The `rhubarb` executable
+   - A `res` folder containing the required resources
+   - Other supporting files
+
+3. **Copy the entire folder structure** to your project:
+   ```bash
+   # Create the bin directory if it doesn't exist
+   mkdir -p bin
+   
+   # Copy the entire Rhubarb directory structure
+   cp -r /path/to/Rhubarb-Lip-Sync-1.13.0-Linux/* bin/
+   # for me it is ~/Downloads/bin/Rhubarb-Lip-Sync-1.13.0-Linux
+   
+   # Make sure the rhubarb executable is executable
+   chmod +x bin/rhubarb
+   ```
+
+4. **Verify the resources exist**:
+   - Check that the `bin/res` directory exists and contains the necessary resources
+   - The path should look something like `bin/res/sphinx/acoustic-model/`

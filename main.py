@@ -2,6 +2,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
+from datetime import datetime
 
 from app.api import auth, chatbot, hr, admin
 from app.database import Base, engine
@@ -19,6 +20,8 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
+logger = logging.getLogger(__name__)
+
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
@@ -30,11 +33,16 @@ app = FastAPI(
 # Set up CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, replace with specific origins
+    allow_origins=["*"], 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+@app.middleware("http")
+async def log_requests(request, call_next):
+    logger.info(f"[{datetime.now().isoformat()}] {request.method} {request.url.path}")
+    response = await call_next(request)
+    return response
 
 # Include routers
 app.include_router(
@@ -59,4 +67,4 @@ async def root():
 
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=3000, reload=True)
