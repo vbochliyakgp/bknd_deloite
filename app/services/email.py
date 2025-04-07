@@ -47,7 +47,7 @@ class EmailService:
             return False
 
     @staticmethod
-    async def send_employee_alert(db: Session, employee_id: int) -> bool:
+    async def send_employee_alert(db: Session, employee_id: str) -> bool:
         """
         Send an alert to an employee
         """

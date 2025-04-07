@@ -2,33 +2,33 @@
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 import pandas as pd
 import io
 import csv
 from sqlalchemy import text
-from pydantic import TypeAdapter
+from typing import Dict
 
 from app.dependencies import get_db, get_current_active_hr
 from app.core.security import get_password_hash
 from app.models.employee import Employee, UserType, WellnessCheckStatus
-from app.models.vibemeter import VibemeterData, EmotionZone
+from app.models.vibemeter import VibemeterData
 from app.models.chat_session import ChatSession
 from app.models.message import Message
-from app.models.leave import Leave, LeaveStatus, LeaveType
+from app.models.leave import Leave
 from app.models.activity import Activity
-from app.models.performance import Performance
-from app.schemas.chat import MessageResponse, MessageBaseNew
+from app.models.onboarding import Onboarding
+from app.models.performance import PerformanceData
+from app.schemas.chat import MessageBaseNew
 from app.models.rewards import Reward
-from app.schemas.employee import EmployeeResponse, EmployeeWithAnalytics
+from app.schemas.employee import EmployeeWithAnalytics
 from app.schemas.analytics import (
     EmployeeAlert,
     EmployeeSessionAnalyticsNew,
     DailyReport,
-    SendEmailAlert,
 )
-from app.schemas.upload import DatasetType, UploadResponse
-from app.schemas.chat import ChatSessionWithMessages, ChatSessionBaseNew
+from app.schemas.upload import DatasetType, UploadResponse, AtRiskEmployee
+from app.schemas.chat import ChatSessionBaseNew
 from app.services.analytics import AnalyticsService
 from app.services.email import EmailService
 
@@ -116,7 +116,7 @@ async def get_all_employees(
     "/employees/{employee_id}/sessions", response_model=List[ChatSessionBaseNew]
 )
 async def get_employee_sessions(
-    employee_id: int,
+    employee_id: str,
     db: Session = Depends(get_db),
     current_user: Employee = Depends(get_current_active_hr),
 ):
@@ -141,7 +141,7 @@ async def get_employee_sessions(
         result.append(
             ChatSessionBaseNew(
                 employee_id=session.employee_id,
-                session_id=session.id,
+                session_id=session.session_id,
                 start_time=session.start_time,
                 end_time=session.end_time,
             )
@@ -155,7 +155,7 @@ async def get_employee_sessions(
     response_model=List[MessageBaseNew],
 )
 async def get_employee_messages(
-    employee_id: int,
+    employee_id: str,
     session_id: int,
     db: Session = Depends(get_db),
     current_user: Employee = Depends(get_current_active_hr),
@@ -201,7 +201,7 @@ async def get_employee_messages(
     response_model=EmployeeSessionAnalyticsNew,
 )
 async def get_employee_analytics(
-    employee_id: int,
+    employee_id: str,
     session_id: int,
     db: Session = Depends(get_db),
     current_user: Employee = Depends(get_current_active_hr),
@@ -250,7 +250,7 @@ async def get_employee_alerts(
 
 @router.post("/alerts/email/{employee_id}", status_code=status.HTTP_200_OK)
 async def send_alert_email(
-    employee_id: int,
+    employee_id: str,
     db: Session = Depends(get_db),
     current_user: Employee = Depends(get_current_active_hr),
 ):
@@ -363,7 +363,89 @@ async def upload_data(
                 detail=f"Error processing file {file.filename}: {str(e)}",
             )
 
-    return results
+    # Analyze vibemeter data
+    vibemeter_analysis = await analyze_vibemeter(processed_data)
+
+    at_risk_employees = []
+
+    if vibemeter_analysis:
+        for employee in vibemeter_analysis:
+            employee_id = employee["Employee_ID"]
+            # Update employee's immediate attention status
+            db.query(Employee).filter(Employee.employee_id == employee_id).update(
+                {"immediate_attention": True}
+            )
+            at_risk_employees.append(AtRiskEmployee(employee_id=employee_id))
+
+        db.commit()
+
+    return UploadResponse(at_risk_employees=at_risk_employees)
+
+
+async def analyze_vibemeter(dfs: dict[pd.DataFrame]) -> List[Dict[str, str]]:
+    """
+    Analyze vibemeter data and return employees who need attention
+    """
+    # Implement vibemeter analysis logic
+    low_vibe_json = []
+    high_emotion_diff_json = []
+
+    # Example logic to identify employees with low vibe scores
+    vibemeter = dfs.get(DatasetType.VIBEMETER)
+
+    if not pd.isna(vibemeter["Employee_ID"].iloc[0]) and not str(
+        vibemeter["Employee_ID"].iloc[0]
+    ).startswith("EMP"):
+        vibemeter["Employee_ID"] = vibemeter["Employee_ID"].apply(
+            lambda x: f"EMP{x:04d}"
+        )
+
+        # Count occurrences of each employee ID
+    counts = vibemeter["Employee_ID"].value_counts()
+
+    # Identify employees with single vs multiple entries
+    unique = counts[counts == 1].index
+    multiple = counts[counts > 1].index
+
+    # Split dataframe based on entry count
+    vibe_unique = vibemeter[vibemeter["Employee_ID"].isin(unique)]
+    vibe_multi = vibemeter[vibemeter["Employee_ID"].isin(multiple)]
+
+    # Analyze emotional variability for employees with multiple entries
+    result = []
+    for emp_id, group in vibe_multi.groupby("Employee_ID"):
+        scores = group["Vibe_Score"].values
+        if len(scores) == 2:
+            diff = abs(scores[0] - scores[1])
+        else:
+            mean_score = scores.mean()
+            diff = abs((scores - mean_score)).mean()
+        result.append({"Employee_ID": emp_id, "emotion_diff": diff})
+
+    vibe_emotion_diff = pd.DataFrame(result)
+
+    # Identify employees with low vibe scores (bottom 40%)
+    low_vibe_df = vibe_unique[
+        vibe_unique["Vibe_Score"] < vibe_unique["Vibe_Score"].quantile(0.40)
+    ][["Employee_ID"]]
+
+    # Identify employees with high emotional variability (top 15%)
+    high_emotion_diff_df = vibe_emotion_diff[
+        vibe_emotion_diff["emotion_diff"]
+        > vibe_emotion_diff["emotion_diff"].quantile(0.85)
+    ][["Employee_ID"]]
+
+    # Convert to JSON format
+    low_vibe_json = low_vibe_df.to_dict(orient="records")
+    high_emotion_diff_json = high_emotion_diff_df.to_dict(orient="records")
+
+    # Combine both lists
+    all_employees = low_vibe_json + high_emotion_diff_json
+
+    # Remove duplicates by converting to a dictionary and back to a list add to database
+    unique_employees = list({emp["Employee_ID"]: emp for emp in all_employees}.values())
+
+    return unique_employees
 
 
 async def process_leave_data(db: Session, df: pd.DataFrame) -> pd.DataFrame:
@@ -380,7 +462,7 @@ async def process_leave_data(db: Session, df: pd.DataFrame) -> pd.DataFrame:
         if not employee:
             # insert new employee with dummy data
             employee = Employee(
-                employee_id=row["employee_id"],
+                employee_id=str(row["employee_id"]),
                 name="Jake Doe",  # Placeholder, should be replaced with actual name
                 email="jakedoe@example.com",
                 hashed_password=get_password_hash("dummyhashedpassword"),
@@ -400,12 +482,11 @@ async def process_leave_data(db: Session, df: pd.DataFrame) -> pd.DataFrame:
             # Refresh the employee object to get the new ID
 
         leave = Leave(
-            employee_id=employee.id,
-            leave_type=row["leave_type"],
+            employee_id=str(employee.id),
+            leave_type=str(row["leave_type"]),
             start_date=datetime.strptime(row["start_date"], "%Y-%m-%d").date(),
             end_date=datetime.strptime(row["end_date"], "%Y-%m-%d").date(),
-            status=row["status"],
-            reason=row.get("reason", None),
+            leave_days=int(row["leave_days"]),
         )
 
         db.add(leave)
@@ -427,7 +508,7 @@ async def process_activity_data(db: Session, df: pd.DataFrame) -> int:
         )
         if not employee:
             employee = Employee(
-                employee_id=row["employee_id"],
+                employee_id=str(row["employee_id"]),
                 name="Jake Doe",  # Placeholder, should be replaced with actual name
                 email="jakedoe@example.com",
                 hashed_password=get_password_hash("dummyhashedpassword"),
@@ -447,18 +528,18 @@ async def process_activity_data(db: Session, df: pd.DataFrame) -> int:
             # Refresh the employee object to get the new ID
 
         activity = Activity(
-            employee_id=employee.id,
+            employee_id=str(employee.id),
             date=datetime.strptime(row["date"], "%Y-%m-%d").date(),
             hours_worked=float(row["hours_worked"]),
             meetings_attended=int(row["meetings_attended"]),
             emails_sent=int(row["emails_sent"]),
-            after_hours_work=float(row["after_hours_work"]),
+            teams_messages_sent=int(row["teams_messages_sent"]),
         )
 
         db.add(activity)
 
     db.commit()
-    return len(df)
+    return df
 
 
 async def process_rewards_data(db: Session, df: pd.DataFrame) -> int:
@@ -474,7 +555,7 @@ async def process_rewards_data(db: Session, df: pd.DataFrame) -> int:
         )
         if not employee:
             employee = Employee(
-                employee_id=row["employee_id"],
+                employee_id=str(row["employee_id"]),
                 name="Jake Doe",  # Placeholder, should be replaced with actual name
                 email="jakedoe@example.com",
                 hashed_password=get_password_hash("dummyhashedpassword"),
@@ -494,26 +575,16 @@ async def process_rewards_data(db: Session, df: pd.DataFrame) -> int:
             # Refresh the employee object to get the new ID
 
         reward = Reward(
-            employee_id=employee.id,
-            reward_type=row["reward_type"],
-            reward_date=datetime.strptime(row["reward_date"], "%Y-%m-%d").date(),
-            amount=(
-                int(row["amount"])
-                if "amount" in row and not pd.isna(row["amount"])
-                else None
-            ),
-            description=row["description"],
-            awarded_by=(
-                int(row["awarded_by"])
-                if "awarded_by" in row and not pd.isna(row["awarded_by"])
-                else None
-            ),
+            employee_id=str(employee.id),
+            reward_type=str(row["Award_Type"]),
+            reward_date=datetime.strptime(row["Award_Date"], "%Y-%m-%d").date(),
+            points=int(row["Reward_Points"]),
         )
 
         db.add(reward)
 
     db.commit()
-    return len(df)
+    return df
 
 
 async def process_performance_data(db: Session, df: pd.DataFrame) -> int:
@@ -529,7 +600,7 @@ async def process_performance_data(db: Session, df: pd.DataFrame) -> int:
         )
         if not employee:
             employee = Employee(
-                employee_id=row["employee_id"],
+                employee_id=str(row["employee_id"]),
                 name="Jake Doe",  # Placeholder, should be replaced with actual name
                 email="jakedoe@example.com",
                 hashed_password=get_password_hash("dummyhashedpassword"),
@@ -548,30 +619,18 @@ async def process_performance_data(db: Session, df: pd.DataFrame) -> int:
             db.refresh(employee)
             # Refresh the employee object to get the new ID
 
-        performance = Performance(
-            employee_id=employee.id,
-            review_period=row["review_period"],
-            rating=float(row["rating"]),
-            review_date=datetime.strptime(row["review_date"], "%Y-%m-%d").date(),
-            reviewer_id=(
-                int(row["reviewer_id"])
-                if "reviewer_id" in row and not pd.isna(row["reviewer_id"])
-                else None
-            ),
-            promotion_eligible=(
-                bool(row["promotion_eligible"])
-                if "promotion_eligible" in row
-                else False
-            ),
-            strengths=row.get("strengths", None),
-            areas_for_improvement=row.get("areas_for_improvement", None),
-            comments=row.get("comments", None),
+        performance = PerformanceData(
+            employee_id=str(employee.id),
+            review_period=str(row["Review_Period"]),
+            performance_rating=int(row["Performance_Rating"]),
+            manager_feedback=str(row["Manager_Feedback"]),
+            promotion_consideration=bool(row["Promotion_Consideration"]),
         )
 
         db.add(performance)
 
     db.commit()
-    return len(df)
+    return df
 
 
 async def process_vibemeter_data(db: Session, df: pd.DataFrame) -> int:
@@ -587,7 +646,7 @@ async def process_vibemeter_data(db: Session, df: pd.DataFrame) -> int:
         )
         if not employee:
             employee = Employee(
-                employee_id=row["employee_id"],
+                employee_id=str(row["employee_id"]),
                 name="Jake Doe",  # Placeholder, should be replaced with actual name
                 email="jakedoe@example.com",
                 hashed_password=get_password_hash("dummyhashedpassword"),
@@ -607,21 +666,18 @@ async def process_vibemeter_data(db: Session, df: pd.DataFrame) -> int:
             # Refresh the employee object to get the new ID
 
         # Convert string emotion to EmotionZone enum
-        emotion = row["emotion_zone"]
-        if emotion not in [e.value for e in EmotionZone]:
-            continue
 
-        vibemeter_response = VibemeterResponse(
-            employee_id=employee.id,
-            response_date=datetime.strptime(row["response_date"], "%Y-%m-%d").date(),
-            emotion_zone=emotion,
-            comment=row.get("comment", None),
+        vibemeter_response = VibemeterData(
+            employee_id=str(employee.id),
+            date=datetime.strptime(row["Response_Date"], "%Y-%m-%d").date(),
+            vibe_score=int(row["Vibe_Score"]),
+            emotion_zone=str(row["Emotion_Zone"]),
         )
 
         db.add(vibemeter_response)
 
     db.commit()
-    return len(df)
+    return df
 
 
 async def process_onboarding_data(db: Session, df: pd.DataFrame) -> int:
@@ -639,7 +695,7 @@ async def process_onboarding_data(db: Session, df: pd.DataFrame) -> int:
         )
         if existing:
             employee = Employee(
-                employee_id=row["employee_id"],
+                employee_id=str(row["employee_id"]),
                 name="Jake Doe",  # Placeholder, should be replaced with actual name
                 email="jakedoe@example.com",
                 hashed_password=get_password_hash("dummyhashedpassword"),
@@ -659,37 +715,16 @@ async def process_onboarding_data(db: Session, df: pd.DataFrame) -> int:
             # Refresh the employee object to get the new ID
 
         # Create new employee
-        employee = Employee(
-            employee_id=row["employee_id"],
-            name=row["name"],
-            email=row["email"],
-            hashed_password=get_password_hash(row["default_password"]),
-            department=row["department"],
-            position=row["position"],
-            manager_id=None,  # We'll update this later
+        employee = Onboarding(
+            employee_id=str(row["employee_id"]),
+            onboarding_feedback=str(row["Onboarding_Feedback"]),
+            joining_date=datetime.strptime(row["Joining_Date"], "%Y-%m-%d").date(),
+            mentor_assigned=bool(row["Mentor_Assigned"]),
+            training_completed=bool(row["Training_Completed"]),
         )
 
         db.add(employee)
-        rows_processed += 1
 
     db.commit()
 
-    # Second pass to update manager relationships
-    for _, row in df.iterrows():
-        if "manager_id" in row and not pd.isna(row["manager_id"]):
-            employee = (
-                db.query(Employee)
-                .filter(Employee.employee_id == row["employee_id"])
-                .first()
-            )
-            manager = (
-                db.query(Employee)
-                .filter(Employee.employee_id == row["manager_id"])
-                .first()
-            )
-
-            if employee and manager:
-                employee.manager_id = manager.id
-
-    db.commit()
-    return rows_processed
+    return df

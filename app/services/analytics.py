@@ -19,7 +19,7 @@ from app.schemas.analytics import EmployeeAlert, EmployeeSessionAnalytics, Daily
 
 class AnalyticsService:
     @staticmethod
-    def get_employee_data(db: Session, employee_id: int) -> Dict[str, Any]:
+    def get_employee_data(db: Session, employee_id: str) -> Dict[str, Any]:
         """
         Get comprehensive data for a single employee
         """
