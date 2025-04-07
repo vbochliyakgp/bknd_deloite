@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
 from datetime import datetime
+import os
 
 from app.dependencies import get_db, get_current_employee
 from app.models.employee import Employee
@@ -15,11 +16,14 @@ from app.schemas.chat import (
     MessageCreate,
     MessageResponse,
     ChatNextMessageRequest,
-    ChatNextMessageResponse,
+    ChatResponse,
 )
 from app.core.openai_client import openai_client
 from app.services.analytics import AnalyticsService
 from app.services.email import EmailService
+from app.config import settings
+from app.services.audio_service import audio_service
+from app.services.elevenlabs_service import elevenlabs_service
 
 router = APIRouter()
 
@@ -132,7 +136,7 @@ async def get_active_session(
     return ChatSessionWithMessages(**session.__dict__, messages=message_responses)
 
 
-@router.post("/sessions/{session_id}/messages", response_model=ChatNextMessageResponse)
+@router.post("/sessions/{session_id}/messages", response_model=ChatResponse)
 async def send_message(
     session_id: int,
     request: ChatNextMessageRequest,
@@ -220,11 +224,29 @@ async def send_message(
     db.commit()
     db.refresh(bot_message)
 
-    return ChatNextMessageResponse(
-        message=bot_message,
-        suggested_replies=ai_response["suggested_replies"],
-        escalation_recommended=ai_response["escalation_recommended"],
-    )
+    processed_messages = []
+    for i, message_data in enumerate(ai_response["content"]):
+        # Generate speech using ElevenLabs
+        mp3_filename = f"message_{i}.mp3"
+        mp3_path = os.path.join(settings.AUDIO_DIR, mp3_filename)
+        await elevenlabs_service.text_to_speech(message_data["text"], mp3_filename)
+
+        # Process audio (convert to WAV, generate lipsync)
+        audio_base64, lipsync_data = await audio_service.process_audio_for_message(
+            i, message_data["text"]
+        )
+
+        # Create message object
+        message = Message(
+            text=message_data["text"],
+            audio=audio_base64,
+            lipsync=lipsync_data,
+            facialExpression=message_data["facialExpression"],
+            animation=message_data["animation"],
+        )
+        processed_messages.append(message)
+
+    return ChatResponse(messages=processed_messages)
 
 
 @router.post("/sessions/{session_id}/end", response_model=ChatSessionResponse)
@@ -252,8 +274,8 @@ async def end_chat_session(
             detail="Active chat session not found",
         )
 
-    session.update(session_status = SessionStatus.COMPLETED)
-    session.update(end_time = datetime.now())
+    session.update(session_status=SessionStatus.COMPLETED)
+    session.update(end_time=datetime.now())
 
     # Add farewell message
     farewell_message = Message(

@@ -1,10 +1,11 @@
 
 # app/schemas/chat.py
-from typing import Optional, List
+from typing import Optional, List,Dict, Any
 from pydantic import BaseModel
 from datetime import datetime
 from app.models.chat_session import SessionStatus
 from app.models.message import MessageSender
+
 
 class MessageBase(BaseModel):
     sender: MessageSender
@@ -61,8 +62,13 @@ class ChatNextMessageRequest(BaseModel):
     chat_session_id: int
     message: str
 
-class ChatNextMessageResponse(BaseModel):
-    message: MessageResponse
-    suggested_replies: Optional[List[str]] = None
-    escalation_recommended: bool = False
 
+class Message(BaseModel):
+    text: str
+    audio: Optional[str] = None
+    lipsync: Optional[Dict[str, Any]] = None
+    facialExpression: str
+    animation: str
+
+class ChatResponse(BaseModel):
+    messages: List[Message]

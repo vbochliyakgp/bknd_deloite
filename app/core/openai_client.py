@@ -1,5 +1,5 @@
 # app/core/openai_client.py
-import openai
+from openai import AsyncOpenAI
 from typing import List, Dict, Any, Optional
 from app.config import settings
 from app.models.vibemeter import EmotionZone
@@ -7,13 +7,14 @@ from app.models.message import MessageSender
 from sqlalchemy.orm import Session
 import json
 import logging
+from openai.types.chat import ChatCompletionMessageParam
 
 logger = logging.getLogger(__name__)
 
 
 class OpenAIClient:
     def __init__(self):
-        openai.api_key = settings.OPENAI_API_KEY
+        self.client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
 
     async def generate_response(
         self,
@@ -29,89 +30,98 @@ class OpenAIClient:
         """
         try:
             # Format previous messages for OpenAI
-            formatted_messages = [
+            formatted_messages: List[ChatCompletionMessageParam] = [
                 {"role": "system", "content": self._create_system_prompt(employee_data)}
             ]
 
             # Add previous messages
             for prev_msg in previous_messages:
-                role = (
-                    "assistant" if prev_msg["sender"] == MessageSender.BOT else "user"
-                )
-                formatted_messages.append(
-                    {"role": role, "content": prev_msg["content"]}
-                )
+                if prev_msg["sender"] == MessageSender.BOT:
+                    formatted_messages.append(
+                        {"role": "assistant", "content": prev_msg["content"]}
+                    )
+                else:
+                    formatted_messages.append(
+                        {"role": "user", "content": prev_msg["content"]}
+                    )
 
             # Add current message
             formatted_messages.append({"role": "user", "content": message})
 
-            # Call OpenAI API
-            response = openai.ChatCompletion.create(
+            # Call OpenAI API with updated format
+            response = await self.client.chat.completions.create(
                 model="gpt-4",  # or another appropriate model
                 messages=formatted_messages,
                 temperature=0.7,
                 max_tokens=500,
-                functions=[
+                tools=[
                     {
-                        "name": "analyze_response",
-                        "description": "Analyze the employee response and determine if escalation is needed",
-                        "parameters": {
-                            "type": "object",
-                            "properties": {
-                                "response_text": {
-                                    "type": "string",
-                                    "description": "The AI response to the employee",
-                                },
-                                "escalation_recommended": {
-                                    "type": "boolean",
-                                    "description": "Whether the employee's message indicates a situation that should be escalated to HR",
-                                },
-                                "escalation_reason": {
-                                    "type": "string",
-                                    "description": "The reason for escalation, if recommended",
-                                },
-                                "suggested_replies": {
-                                    "type": "array",
-                                    "items": {"type": "string"},
-                                    "description": "Suggested quick replies for the employee to choose from",
-                                },
-                                "sentiment_analysis": {
-                                    "type": "object",
-                                    "properties": {
-                                        "primary_emotion": {
-                                            "type": "string",
-                                            "description": "Primary emotion detected in employee's message",
-                                        },
-                                        "urgency_level": {
-                                            "type": "integer",
-                                            "description": "Urgency level (1-5) of addressing the employee's concern",
+                        "type": "function",
+                        "function": {
+                            "name": "analyze_response",
+                            "description": "Analyze the employee response and determine if escalation is needed",
+                            "parameters": {
+                                "type": "object",
+                                "properties": {
+                                    "response_text": {
+                                        "type": "string",
+                                        "description": "The AI response to the employee",
+                                    },
+                                    "escalation_recommended": {
+                                        "type": "boolean",
+                                        "description": "Whether the employee's message indicates a situation that should be escalated to HR",
+                                    },
+                                    "escalation_reason": {
+                                        "type": "string",
+                                        "description": "The reason for escalation, if recommended",
+                                    },
+                                    "suggested_replies": {
+                                        "type": "array",
+                                        "items": {"type": "string"},
+                                        "description": "Suggested quick replies for the employee to choose from",
+                                    },
+                                    "sentiment_analysis": {
+                                        "type": "object",
+                                        "properties": {
+                                            "primary_emotion": {
+                                                "type": "string",
+                                                "description": "Primary emotion detected in employee's message",
+                                            },
+                                            "urgency_level": {
+                                                "type": "integer",
+                                                "description": "Urgency level (1-5) of addressing the employee's concern",
+                                            },
                                         },
                                     },
                                 },
+                                "required": [
+                                    "response_text",
+                                    "escalation_recommended",
+                                    "suggested_replies",
+                                ],
                             },
-                            "required": [
-                                "response_text",
-                                "escalation_recommended",
-                                "suggested_replies",
-                            ],
                         },
                     }
                 ],
-                function_call={"name": "analyze_response"},
+                tool_choice={
+                    "type": "function",
+                    "function": {"name": "analyze_response"},
+                },
             )
 
-            # Extract the function call results
-            function_args = json.loads(
-                response.choices[0].message.function_call.arguments
-            )
-
-            return {
-                "content": function_args["response_text"],
-                "escalation_recommended": function_args["escalation_recommended"],
-                "escalation_reason": function_args.get("escalation_reason", ""),
-                "suggested_replies": function_args["suggested_replies"],
-                "sentiment_analysis": function_args.get("sentiment_analysis", {}),
-            }
+            if response.choices[0].message.tool_calls:
+                tool_call = response.choices[0].message.tool_calls[0]
+                function_args = json.loads(tool_call.function.arguments)
+                
+                return {
+                    "content": function_args["response_text"],
+                    "escalation_recommended": function_args["escalation_recommended"],
+                    "escalation_reason": function_args.get("escalation_reason", ""),
+                    "suggested_replies": function_args["suggested_replies"],
+                    "sentiment_analysis": function_args.get("sentiment_analysis", {}),
+                }
+            else:
+                raise ValueError("No tool call found in the response")
 
         except Exception as e:
             logger.error(f"Error generating OpenAI response: {str(e)}")
@@ -145,32 +155,32 @@ class OpenAIClient:
         rewards_data = employee_data.get("rewards_data", {})
 
         system_prompt = f"""
-You are TIA, Deloitte's empathetic AI assistant that helps employees with their well-being and engagement. 
-Your goal is to understand employee concerns, provide support, and gather insights that can improve their experience.
+            You are TIA, Deloitte's empathetic AI assistant that helps employees with their well-being and engagement. 
+            Your goal is to understand employee concerns, provide support, and gather insights that can improve their experience.
 
-EMPLOYEE CONTEXT:
-Name: {employee_data.get('name', 'Employee')}
-Department: {employee_data.get('department', 'Unknown')}
-Position: {employee_data.get('position', 'Unknown')}
-Recent Vibe Meter Responses: {recent_vibes}
-Leave Balance: {leave_data.get('balance', 'Unknown')} days
-Recent Performance Rating: {performance_data.get('rating', 'Unknown')}
-Average Working Hours: {activity_data.get('average_hours', 'Unknown')} hours/day
-Recent Rewards: {rewards_data.get('recent_rewards', 'None')}
+            EMPLOYEE CONTEXT:
+            Name: {employee_data.get('name', 'Employee')}
+            Department: {employee_data.get('department', 'Unknown')}
+            Position: {employee_data.get('position', 'Unknown')}
+            Recent Vibe Meter Responses: {recent_vibes}
+            Leave Balance: {leave_data.get('balance', 'Unknown')} days
+            Recent Performance Rating: {performance_data.get('rating', 'Unknown')}
+            Average Working Hours: {activity_data.get('average_hours', 'Unknown')} hours/day
+            Recent Rewards: {rewards_data.get('recent_rewards', 'None')}
 
-GUIDELINES:
-1. Be empathetic and supportive in your responses.
-2. Ask open-ended questions to understand concerns better.
-3. If the employee expresses frustration or sadness, show understanding and explore potential reasons.
-4. Recognize if a situation needs human HR intervention and flag for escalation if needed.
-5. Provide practical suggestions based on their specific context.
-6. Focus on well-being, work-life balance, and employee engagement.
-7. Be positive and solution-oriented, but don't dismiss genuine concerns.
-8. Respect employee privacy and maintain confidentiality.
-9. Make connections between different data points (e.g., long working hours and low vibe scores).
+            GUIDELINES:
+            1. Be empathetic and supportive in your responses.
+            2. Ask open-ended questions to understand concerns better.
+            3. If the employee expresses frustration or sadness, show understanding and explore potential reasons.
+            4. Recognize if a situation needs human HR intervention and flag for escalation if needed.
+            5. Provide practical suggestions based on their specific context.
+            6. Focus on well-being, work-life balance, and employee engagement.
+            7. Be positive and solution-oriented, but don't dismiss genuine concerns.
+            8. Respect employee privacy and maintain confidentiality.
+            9. Make connections between different data points (e.g., long working hours and low vibe scores).
 
-Respond conversationally but professionally, as an AI assistant representing Deloitte.
-"""
+            Respond conversationally but professionally, as an AI assistant representing Deloitte.
+            """
         return system_prompt
 
 
