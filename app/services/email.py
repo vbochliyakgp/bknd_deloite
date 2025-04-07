@@ -47,9 +47,7 @@ class EmailService:
             return False
 
     @staticmethod
-    async def send_employee_alert(
-        db: Session, employee_id: int, subject: str, message: str
-    ) -> bool:
+    async def send_employee_alert(db: Session, employee_id: int) -> bool:
         """
         Send an alert to an employee
         """
@@ -76,7 +74,9 @@ class EmailService:
                         </div>
                         <div class="content">
                             <p>Hello {employee.name},</p>
-                            <p>{message}</p>
+                            <p>We have detected a potential issue with your recent activity on the Vibemeter system.</p>
+                            <p>We recommend that you take a moment to contact the wellness bot for your well-being check.</p>
+
                             <p>This is an automated message from the Vibemeter system. If you have any questions, please reply to this email or contact HR.</p>
                             <p>Best regards,<br>Deloitte People Experience Team</p>
                         </div>
@@ -91,7 +91,7 @@ class EmailService:
         text_content = f"""
         Hello {employee.name},
 
-        {message}
+        We have detected a potential issue with your recent activity on the Vibemeter system. We recommend that you take a moment to contact the wellness bot for your well-being check.
 
         This is an automated message from the Vibemeter system. If you have any questions, please reply to this email or contact HR.
 
@@ -103,7 +103,7 @@ class EmailService:
 
         return await EmailService.send_email(
             to_email=str(employee.email),
-            subject=subject,
+            subject="Vibemeter Alert: Immediate Attention Required",
             text_content=text_content,
             html_content=html_content,
         )

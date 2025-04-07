@@ -1,24 +1,27 @@
-
 # app/schemas/user.py
 from typing import Optional
 from pydantic import BaseModel, EmailStr
-from app.models.user import UserRole
 from datetime import datetime
+from app.models.employee import UserType
+
 
 class UserBase(BaseModel):
     username: str
     email: EmailStr
-    role: UserRole
+    role: UserType
+
 
 class UserCreate(UserBase):
     password: str
+
 
 class UserUpdate(BaseModel):
     username: Optional[str] = None
     email: Optional[EmailStr] = None
     password: Optional[str] = None
-    role: Optional[UserRole] = None
+    role: Optional[UserType] = None
     is_active: Optional[bool] = None
+
 
 class UserInDBBase(UserBase):
     id: int
@@ -28,6 +31,7 @@ class UserInDBBase(UserBase):
 
     class Config:
         orm_mode = True
+
 
 class UserResponse(UserInDBBase):
     pass

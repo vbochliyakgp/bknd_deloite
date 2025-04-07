@@ -10,25 +10,25 @@ from sqlalchemy import text
 from pydantic import TypeAdapter
 
 from app.dependencies import get_db, get_current_active_hr
-from app.models.user import User
-from app.models.employee import Employee
-from app.models.vibemeter import VibemeterResponse, EmotionZone
+from app.core.security import get_password_hash
+from app.models.employee import Employee, UserType, WellnessCheckStatus
+from app.models.vibemeter import VibemeterData, EmotionZone
 from app.models.chat_session import ChatSession
 from app.models.message import Message
 from app.models.leave import Leave, LeaveStatus, LeaveType
 from app.models.activity import Activity
 from app.models.performance import Performance
-from app.schemas.chat import MessageResponse
+from app.schemas.chat import MessageResponse, MessageBaseNew
 from app.models.rewards import Reward
 from app.schemas.employee import EmployeeResponse, EmployeeWithAnalytics
 from app.schemas.analytics import (
     EmployeeAlert,
-    EmployeeSessionAnalytics,
+    EmployeeSessionAnalyticsNew,
     DailyReport,
     SendEmailAlert,
 )
 from app.schemas.upload import DatasetType, UploadResponse
-from app.schemas.chat import ChatSessionWithMessages
+from app.schemas.chat import ChatSessionWithMessages, ChatSessionBaseNew
 from app.services.analytics import AnalyticsService
 from app.services.email import EmailService
 
@@ -37,21 +37,13 @@ router = APIRouter()
 
 @router.get("/employees", response_model=List[EmployeeWithAnalytics])
 async def get_all_employees(
-    department: Optional[str] = None,
-    active_only: bool = True,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_hr),
+    current_user: Employee = Depends(get_current_active_hr),
 ):
     """
     Get all employees with basic analytics
     """
     query = db.query(Employee)
-
-    if active_only:
-        query = query.filter(Employee.is_active == True)
-
-    if department:
-        query = query.filter(Employee.department == department)
 
     employees = query.all()
     result = []
@@ -59,9 +51,9 @@ async def get_all_employees(
     for employee in employees:
         # Get latest vibemeter response
         latest_vibe = (
-            db.query(VibemeterResponse)
-            .filter(VibemeterResponse.employee_id == employee.id)
-            .order_by(VibemeterResponse.response_date.desc())
+            db.query(VibemeterData)
+            .filter(VibemeterData.employee_id == employee.id)
+            .order_by(VibemeterData.response_date.desc())
             .first()
         )
 
@@ -69,7 +61,9 @@ async def get_all_employees(
         leave_balance = 30  # Default annual leave
         leave_taken = (
             db.execute(
-                text("SELECT SUM((end_date - start_date) + 1) FROM leaves WHERE employee_id = :employee_id AND EXTRACT(YEAR FROM start_date) = EXTRACT(YEAR FROM CURRENT_DATE)"),
+                text(
+                    "SELECT SUM(leave_days) FROM leaves WHERE employee_id = :employee_id AND EXTRACT(YEAR FROM start_date) = EXTRACT(YEAR FROM CURRENT_DATE)"
+                ),
                 {"employee_id": employee.id},
             ).scalar()
             or 0
@@ -79,7 +73,9 @@ async def get_all_employees(
         # Get activity data
         activity_data = (
             db.execute(
-                text("SELECT AVG(hours_worked) FROM activities WHERE employee_id = :employee_id AND date >= CURRENT_DATE - INTERVAL '30 days'"),
+                text(
+                    "SELECT AVG(hours_worked) FROM activities WHERE employee_id = :employee_id ORDER BY date DESC LIMIT 3"
+                ),
                 {"employee_id": employee.id},
             ).scalar()
             or 0
@@ -87,7 +83,9 @@ async def get_all_employees(
 
         # Get performance data
         performance = db.execute(
-            text("SELECT rating FROM performances WHERE employee_id = :employee_id ORDER BY review_date DESC LIMIT 1"),
+            text(
+                "SELECT performance_rating FROM performances WHERE employee_id = :employee_id ORDER BY review_date DESC LIMIT 1"
+            ),
             {"employee_id": employee.id},
         ).scalar()
 
@@ -115,34 +113,12 @@ async def get_all_employees(
 
 
 @router.get(
-    "/employees/{employee_id}/analytics", response_model=EmployeeSessionAnalytics
-)
-async def get_employee_analytics(
-    employee_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_hr),
-):
-    """
-    Get detailed analytics for a specific employee
-    """
-    employee = db.query(Employee).filter(Employee.id == employee_id).first()
-    if not employee:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found"
-        )
-
-    analytics = AnalyticsService.get_employee_analytics(db, employee_id)
-    return analytics
-
-
-@router.get(
-    "/employees/{employee_id}/sessions", response_model=List[ChatSessionWithMessages]
+    "/employees/{employee_id}/sessions", response_model=List[ChatSessionBaseNew]
 )
 async def get_employee_sessions(
     employee_id: int,
-    limit: int = 10,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_hr),
+    current_user: Employee = Depends(get_current_active_hr),
 ):
     """
     Get chat sessions for a specific employee
@@ -157,28 +133,113 @@ async def get_employee_sessions(
         db.query(ChatSession)
         .filter(ChatSession.employee_id == employee_id)
         .order_by(ChatSession.start_time.desc())
-        .limit(limit)
         .all()
     )
 
     result = []
     for session in sessions:
-        messages = (
-            db.query(Message)
-            .filter(Message.chat_session_id == session.id)
-            .order_by(Message.timestamp)
-            .all()
+        result.append(
+            ChatSessionBaseNew(
+                employee_id=session.employee_id,
+                session_id=session.id,
+                start_time=session.start_time,
+                end_time=session.end_time,
+            )
         )
-        message_adapter = TypeAdapter(List[MessageResponse])
-        message_responses = message_adapter.validate_python(messages)
-        result.append(ChatSessionWithMessages(**session.__dict__, messages=message_responses))
 
     return result
 
 
+@router.get(
+    "/employees/{employee_id}/messages/{session_id}",
+    response_model=List[MessageBaseNew],
+)
+async def get_employee_messages(
+    employee_id: int,
+    session_id: int,
+    db: Session = Depends(get_db),
+    current_user: Employee = Depends(get_current_active_hr),
+):
+    """
+    Get messages for a specific chat session of an employee
+    """
+    employee = db.query(Employee).filter(Employee.id == employee_id).first()
+    if not employee:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found"
+        )
+
+    session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Session not found"
+        )
+
+    messages = (
+        db.query(Message)
+        .filter(Message.session_id == session.id)
+        .order_by(Message.id)
+        .all()
+    )
+
+    result = []
+    for i, message in enumerate(messages):
+        result.append(
+            MessageBaseNew(
+                session_id=message.session_id,
+                serial_number=i + 1,
+                question=message.question,
+                answer=message.answer,
+            )
+        )
+
+    return result
+
+
+@router.get(
+    "/employees/{employee_id}/analytics/{session_id}",
+    response_model=EmployeeSessionAnalyticsNew,
+)
+async def get_employee_analytics(
+    employee_id: int,
+    session_id: int,
+    db: Session = Depends(get_db),
+    current_user: Employee = Depends(get_current_active_hr),
+):
+    """
+    Get detailed analytics for a specific employee
+    """
+    employee = db.query(Employee).filter(Employee.id == employee_id).first()
+    if not employee:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found"
+        )
+
+    # TO DO: Implement detailed analytics logic
+    session = db.query(ChatSession).filter(ChatSession.session_id == session_id).first()
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Session not found"
+        )
+
+    analytics = EmployeeSessionAnalyticsNew(
+        employee_id=employee_id,
+        session_id=session.session_id,
+        escalated=session.escalated,
+        summary=session.summary,
+        suggestions=session.suggestions,
+        risk_score=session.risk_score,
+        start_time=session.start_time,
+        end_time=session.end_time,
+    )
+    return analytics
+
+
+# TO FIX
 @router.get("/alerts", response_model=List[EmployeeAlert])
 async def get_employee_alerts(
-    db: Session = Depends(get_db), current_user: User = Depends(get_current_active_hr)
+    db: Session = Depends(get_db),
+    current_user: Employee = Depends(get_current_active_hr),
 ):
     """
     Get alerts for employees who need attention
@@ -187,16 +248,16 @@ async def get_employee_alerts(
     return alerts
 
 
-@router.post("/alerts/email", status_code=status.HTTP_200_OK)
+@router.post("/alerts/email/{employee_id}", status_code=status.HTTP_200_OK)
 async def send_alert_email(
-    alert: SendEmailAlert,
+    employee_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_hr),
+    current_user: Employee = Depends(get_current_active_hr),
 ):
     """
     Send an alert email to an employee
     """
-    employee = db.query(Employee).filter(Employee.id == alert.employee_id).first()
+    employee = db.query(Employee).filter(Employee.id == employee_id).first()
     if not employee:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found"
@@ -204,9 +265,7 @@ async def send_alert_email(
 
     success = await EmailService.send_employee_alert(
         db=db,
-        employee_id=alert.employee_id,
-        subject=alert.subject,
-        message=alert.message,
+        employee_id=employee_id,
     )
 
     if not success:
@@ -218,11 +277,12 @@ async def send_alert_email(
     return {"status": "success", "message": "Email sent successfully"}
 
 
+# TO FIX
 @router.get("/reports/daily", response_model=DailyReport)
 async def get_daily_report(
     report_date: Optional[date] = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_hr),
+    current_user: Employee = Depends(get_current_active_hr),
 ):
     """
     Get the daily report
@@ -234,58 +294,79 @@ async def get_daily_report(
     return report
 
 
+# TO FIX
 @router.post("/upload", response_model=UploadResponse)
 async def upload_data(
-    file: UploadFile = File(...),
-    dataset_type: DatasetType = Form(...),
+    files: List[UploadFile] = File(...),
+    dataset_types: List[str] = Form(...),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_hr),
+    current_user: Employee = Depends(get_current_active_hr),
 ):
     """
-    Upload data file (CSV)
+    Upload multiple data files (CSV), one for each dataset type
     """
-    if file.content_type != "text/csv":
+    if len(files) != len(dataset_types):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Only CSV files are supported",
+            detail="Number of files and dataset types must match",
         )
 
-    contents = await file.read()
+    processed_data = {}
 
-    try:
-        # Parse CSV data
-        df = pd.read_csv(io.StringIO(contents.decode("utf-8")))
-        rows_processed = 0
+    for file, dataset_type_str in zip(files, dataset_types):
+        if file.content_type != "text/csv":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"File {file.filename} is not a CSV file",
+            )
 
-        if dataset_type == DatasetType.LEAVE:
-            rows_processed = await process_leave_data(db, df)
-        elif dataset_type == DatasetType.ACTIVITY:
-            rows_processed = await process_activity_data(db, df)
-        elif dataset_type == DatasetType.REWARDS:
-            rows_processed = await process_rewards_data(db, df)
-        elif dataset_type == DatasetType.PERFORMANCE:
-            rows_processed = await process_performance_data(db, df)
-        elif dataset_type == DatasetType.VIBEMETER:
-            rows_processed = await process_vibemeter_data(db, df)
-        elif dataset_type == DatasetType.ONBOARDING:
-            rows_processed = await process_onboarding_data(db, df)
+        try:
+            # Validate and convert dataset type
+            try:
+                dataset_type = DatasetType(dataset_type_str)
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid dataset type: {dataset_type_str}",
+                )
 
-        return UploadResponse(
-            filename=str(file.filename),
-            dataset_type=dataset_type,
-            rows_processed=rows_processed,
-            success=True,
-            message=f"Successfully processed {rows_processed} rows",
-        )
+            contents = await file.read()
 
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error processing file: {str(e)}",
-        )
+            # Parse CSV data
+            df = pd.read_csv(io.StringIO(contents.decode("utf-8")))
+
+            if dataset_type == DatasetType.LEAVE:
+                processed_data[DatasetType.LEAVE] = await process_leave_data(db, df)
+            elif dataset_type == DatasetType.ACTIVITY:
+                processed_data[DatasetType.ACTIVITY] = await process_activity_data(
+                    db, df
+                )
+            elif dataset_type == DatasetType.REWARDS:
+                processed_data[DatasetType.REWARDS] = await process_rewards_data(db, df)
+            elif dataset_type == DatasetType.PERFORMANCE:
+                processed_data[DatasetType.PERFORMANCE] = (
+                    await process_performance_data(db, df)
+                )
+            elif dataset_type == DatasetType.VIBEMETER:
+                processed_data[DatasetType.VIBEMETER] = await process_vibemeter_data(
+                    db, df
+                )
+            elif dataset_type == DatasetType.ONBOARDING:
+                processed_data[DatasetType.ONBOARDING] = await process_onboarding_data(
+                    db, df
+                )
+
+        except Exception as e:
+
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error processing file {file.filename}: {str(e)}",
+            )
+
+    return results
 
 
-async def process_leave_data(db: Session, df: pd.DataFrame) -> int:
+async def process_leave_data(db: Session, df: pd.DataFrame) -> pd.DataFrame:
     """
     Process leave data from CSV
     """
@@ -297,7 +378,26 @@ async def process_leave_data(db: Session, df: pd.DataFrame) -> int:
             .first()
         )
         if not employee:
-            continue
+            # insert new employee with dummy data
+            employee = Employee(
+                employee_id=row["employee_id"],
+                name="Jake Doe",  # Placeholder, should be replaced with actual name
+                email="jakedoe@example.com",
+                hashed_password=get_password_hash("dummyhashedpassword"),
+                phone="1234567890",
+                department="HR",
+                position="HR Manager",
+                user_type=UserType.employee,
+                profile_image=None,
+                wellness_check_status=WellnessCheckStatus.not_recieved,
+                last_vibe="neutral",
+                immediate_attention=False,
+            )
+
+            db.add(employee)
+            db.commit()
+            db.refresh(employee)
+            # Refresh the employee object to get the new ID
 
         leave = Leave(
             employee_id=employee.id,
@@ -311,7 +411,7 @@ async def process_leave_data(db: Session, df: pd.DataFrame) -> int:
         db.add(leave)
 
     db.commit()
-    return len(df)
+    return df
 
 
 async def process_activity_data(db: Session, df: pd.DataFrame) -> int:
@@ -326,7 +426,25 @@ async def process_activity_data(db: Session, df: pd.DataFrame) -> int:
             .first()
         )
         if not employee:
-            continue
+            employee = Employee(
+                employee_id=row["employee_id"],
+                name="Jake Doe",  # Placeholder, should be replaced with actual name
+                email="jakedoe@example.com",
+                hashed_password=get_password_hash("dummyhashedpassword"),
+                phone="1234567890",
+                department="HR",
+                position="HR Manager",
+                user_type=UserType.employee,
+                profile_image=None,
+                wellness_check_status=WellnessCheckStatus.not_recieved,
+                last_vibe="neutral",
+                immediate_attention=False,
+            )
+
+            db.add(employee)
+            db.commit()
+            db.refresh(employee)
+            # Refresh the employee object to get the new ID
 
         activity = Activity(
             employee_id=employee.id,
@@ -355,7 +473,25 @@ async def process_rewards_data(db: Session, df: pd.DataFrame) -> int:
             .first()
         )
         if not employee:
-            continue
+            employee = Employee(
+                employee_id=row["employee_id"],
+                name="Jake Doe",  # Placeholder, should be replaced with actual name
+                email="jakedoe@example.com",
+                hashed_password=get_password_hash("dummyhashedpassword"),
+                phone="1234567890",
+                department="HR",
+                position="HR Manager",
+                user_type=UserType.employee,
+                profile_image=None,
+                wellness_check_status=WellnessCheckStatus.not_recieved,
+                last_vibe="neutral",
+                immediate_attention=False,
+            )
+
+            db.add(employee)
+            db.commit()
+            db.refresh(employee)
+            # Refresh the employee object to get the new ID
 
         reward = Reward(
             employee_id=employee.id,
@@ -392,7 +528,25 @@ async def process_performance_data(db: Session, df: pd.DataFrame) -> int:
             .first()
         )
         if not employee:
-            continue
+            employee = Employee(
+                employee_id=row["employee_id"],
+                name="Jake Doe",  # Placeholder, should be replaced with actual name
+                email="jakedoe@example.com",
+                hashed_password=get_password_hash("dummyhashedpassword"),
+                phone="1234567890",
+                department="HR",
+                position="HR Manager",
+                user_type=UserType.employee,
+                profile_image=None,
+                wellness_check_status=WellnessCheckStatus.not_recieved,
+                last_vibe="neutral",
+                immediate_attention=False,
+            )
+
+            db.add(employee)
+            db.commit()
+            db.refresh(employee)
+            # Refresh the employee object to get the new ID
 
         performance = Performance(
             employee_id=employee.id,
@@ -432,7 +586,25 @@ async def process_vibemeter_data(db: Session, df: pd.DataFrame) -> int:
             .first()
         )
         if not employee:
-            continue
+            employee = Employee(
+                employee_id=row["employee_id"],
+                name="Jake Doe",  # Placeholder, should be replaced with actual name
+                email="jakedoe@example.com",
+                hashed_password=get_password_hash("dummyhashedpassword"),
+                phone="1234567890",
+                department="HR",
+                position="HR Manager",
+                user_type=UserType.employee,
+                profile_image=None,
+                wellness_check_status=WellnessCheckStatus.not_recieved,
+                last_vibe="neutral",
+                immediate_attention=False,
+            )
+
+            db.add(employee)
+            db.commit()
+            db.refresh(employee)
+            # Refresh the employee object to get the new ID
 
         # Convert string emotion to EmotionZone enum
         emotion = row["emotion_zone"]
@@ -457,9 +629,7 @@ async def process_onboarding_data(db: Session, df: pd.DataFrame) -> int:
     Process onboarding data from CSV - this would typically create new employees
     """
     # Implement data import logic for new employees (onboarding)
-    from app.core.security import get_password_hash
 
-    rows_processed = 0
     for _, row in df.iterrows():
         # Check if employee already exists
         existing = (
@@ -468,7 +638,25 @@ async def process_onboarding_data(db: Session, df: pd.DataFrame) -> int:
             .first()
         )
         if existing:
-            continue
+            employee = Employee(
+                employee_id=row["employee_id"],
+                name="Jake Doe",  # Placeholder, should be replaced with actual name
+                email="jakedoe@example.com",
+                hashed_password=get_password_hash("dummyhashedpassword"),
+                phone="1234567890",
+                department="HR",
+                position="HR Manager",
+                user_type=UserType.employee,
+                profile_image=None,
+                wellness_check_status=WellnessCheckStatus.not_recieved,
+                last_vibe="neutral",
+                immediate_attention=False,
+            )
+
+            db.add(employee)
+            db.commit()
+            db.refresh(employee)
+            # Refresh the employee object to get the new ID
 
         # Create new employee
         employee = Employee(

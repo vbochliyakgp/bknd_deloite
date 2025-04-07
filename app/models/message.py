@@ -1,27 +1,19 @@
 # app/models/message.py
-from sqlalchemy import Column, String, Integer, ForeignKey, Text, Enum, Float, Boolean
+from sqlalchemy import Column, String, Integer, ForeignKey, Text
 from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
-from sqlalchemy.sql.sqltypes import TIMESTAMP
 from app.database import Base
-import enum
-
-
-class MessageSender(str, enum.Enum):
-    BOT = "bot"
-    EMPLOYEE = "employee"
-
 
 class Message(Base):
-    __tablename__ = "messages"
+    __tablename__ = "chat_messages"
 
-    id = Column(Integer, primary_key=True, index=True)
-    chat_session_id = Column(Integer, ForeignKey("chat_sessions.id"))
-    sender = Column(Enum(MessageSender))
-    content = Column(Text)
-    sentiment = Column(Float, nullable=True)  # Added field
-    feedback = Column(Boolean, nullable=True)  # Added field
-    timestamp = Column(TIMESTAMP(timezone=True), server_default=func.now())
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    session_id = Column(String(10), ForeignKey("chat_sessions.session_id", ondelete="CASCADE"), nullable=False)
+    question = Column(Text, nullable=False)
+    answer = Column(Text, nullable=False)
 
-    # Relationships
-    chat_session = relationship("ChatSession", back_populates="messages")
+    session = relationship("ChatSession", back_populates="messages")
+
+    def update(self, **kwargs):
+        for key, value in kwargs.items():
+            if hasattr(self, key):
+                setattr(self, key, value)
