@@ -8,6 +8,8 @@ import io
 import csv
 from sqlalchemy import text
 from typing import Dict
+# Call OpenAI API using the client approach
+from openai import AsyncOpenAI
 
 from app.dependencies import get_db, get_current_active_hr
 from app.core.security import get_password_hash
@@ -43,6 +45,7 @@ import openai
 from app.database import get_db
 from app.models.chat_session import ChatSession
 from app.models.employee import Employee
+from app.config import settings
 
 
 router = APIRouter()
@@ -345,8 +348,10 @@ async def get_daily_report(
     prompt = prompt_template.replace("[TABLE DATA WILL BE INSERTED HERE]", table_data)
 
     try:
-        # Call OpenAI API
-        response = openai.ChatCompletion.create(
+        
+        client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+
+        response = client.chat.completions.create(
             model="gpt-4",  # Use appropriate model
             messages=[{"role": "system", "content": prompt}],
             temperature=0.2,  # Lower temperature for more consistent output
