@@ -5,7 +5,7 @@ from datetime import datetime
 
 
 class MessageBaseNew(BaseModel):
-    session_id: int
+    session_id: str
     serial_number: int
     question: str
     answer: Optional[str] = None
@@ -33,8 +33,8 @@ class MessageResponse(MessageInDBBase):
 
 
 class ChatSessionBaseNew(BaseModel):
-    employee_id: int
-    session_id: int
+    employee_id: str
+    session_id: str
     start_time: datetime
     end_time: Optional[datetime] = None
 

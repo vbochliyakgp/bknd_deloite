@@ -171,10 +171,10 @@ async def get_employee_sessions(
     for session in sessions:
         result.append(
             ChatSessionBaseNew(
-                employee_id=int(session.employee_id.scalar()),
-                session_id=int(session.session_id.scalar()),
-                start_time=session.start_time.scalar(),
-                end_time=session.end_time.scalar(),
+                employee_id=session.employee_id,
+                session_id=session.session_id,
+                start_time=session.start_time,
+                end_time=session.end_time,
             )
         )
 
@@ -187,7 +187,7 @@ async def get_employee_sessions(
 )
 async def get_employee_messages(
     employee_id: str,
-    session_id: int,
+    session_id: str,
     db: Session = Depends(get_db),
     current_user: Employee = Depends(get_current_active_hr),
 ):
@@ -200,7 +200,7 @@ async def get_employee_messages(
             status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found"
         )
 
-    session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
+    session = db.query(ChatSession).filter(ChatSession.session_id == session_id).first()
     if not session:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Session not found"
@@ -217,10 +217,10 @@ async def get_employee_messages(
     for i, message in enumerate(messages):
         result.append(
             MessageBaseNew(
-                session_id=int(message.session_id.scalar()),
+                session_id=message.session_id,
                 serial_number=i + 1,
-                question=message.question.scalar(),
-                answer=message.answer.scalar(),
+                question=message.question,
+                answer=message.answer,
             )
         )
 
@@ -233,7 +233,7 @@ async def get_employee_messages(
 )
 async def get_employee_analytics(
     employee_id: str,
-    session_id: int,
+    session_id: str,
     db: Session = Depends(get_db),
     current_user: Employee = Depends(get_current_active_hr),
 ):
@@ -252,31 +252,18 @@ async def get_employee_analytics(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Session not found"
         )
-
+    print(f"Session details: {session.start_time} - {session.end_time}")
     analytics = EmployeeSessionAnalyticsNew(
         employee_id=employee_id,
-        session_id=int(session.session_id.scalar()),
-        escalated=session.escalated.scalar(),
-        summary=session.summary.scalar(),
-        suggestions=session.suggestions.scalar(),
-        risk_score=session.risk_score.scalar(),
-        start_time=session.start_time.scalar(),
-        end_time=session.end_time.scalar(),
+        session_id=session.session_id,
+        escalated=session.escalated,
+        summary=session.summary,
+        suggestions=session.suggestions,
+        risk_score=session.risk_score,
+        start_time=session.start_time,
+        end_time=session.end_time,
     )
     return analytics
-
-
-# TO FIX
-@router.get("/alerts", response_model=List[EmployeeAlert])
-async def get_employee_alerts(
-    db: Session = Depends(get_db),
-    current_user: Employee = Depends(get_current_active_hr),
-):
-    """
-    Get alerts for employees who need attention
-    """
-    alerts = AnalyticsService.identify_at_risk_employees(db)
-    return alerts
 
 
 @router.post("/alerts/email/{employee_id}", status_code=status.HTTP_200_OK)
@@ -355,6 +342,9 @@ async def get_daily_report(
     # Format data as a table string for the prompt
     table_data = format_as_table(session_data)
 
+    print("Formatted table data for prompt:")
+    print(table_data)
+
     # Read prompt template from file or use the provided one
     with open("app/prompts/daily_report_prompt.txt", "r") as f:
         prompt_template = f.read()
@@ -365,17 +355,17 @@ async def get_daily_report(
     try:
         
         client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
-
-        response = client.chat.completions.create(
-            model="gpt-4",  # Use appropriate model
+        print("API Key:", settings.OPENAI_API_KEY)
+        response = await client.chat.completions.create(
+            model="gpt-4o",  # Use appropriate model
             messages=[{"role": "system", "content": prompt}],
             temperature=0.2,  # Lower temperature for more consistent output
-            max_tokens=4000,
+            max_tokens=500,
             response_format={"type": "json_object"},
         )
 
         # Parse JSON response
-        report_json = json.loads(response.choices[0].message.content)
+        report_json = response.choices[0].message.content
 
         # Convert to Pydantic model for validation
         # This will raise a validation error if the structure doesn't match
