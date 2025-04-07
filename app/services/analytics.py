@@ -2,10 +2,7 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import func, desc, and_
 from typing import List, Dict, Any, Optional
-from datetime import date, datetime, timedelta
-import pandas as pd
-import numpy as np
-from collections import Counter
+from datetime import date, timedelta
 
 from app.models.employee import Employee
 from app.models.vibemeter import VibemeterData

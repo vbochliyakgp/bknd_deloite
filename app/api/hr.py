@@ -382,7 +382,7 @@ async def upload_data(
     return UploadResponse(at_risk_employees=at_risk_employees)
 
 
-async def analyze_vibemeter(dfs: dict[pd.DataFrame]) -> List[Dict[str, str]]:
+async def analyze_vibemeter(dfs: Dict[pd.DataFrame]) -> List[Dict[str, str]]:
     """
     Analyze vibemeter data and return employees who need attention
     """
