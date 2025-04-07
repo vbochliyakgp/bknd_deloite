@@ -50,7 +50,6 @@ from app.config import settings
 
 router = APIRouter()
 
-
 @router.get("/employees", response_model=List[EmployeeWithAnalytics])
 async def get_all_employees(
     db: Session = Depends(get_db),
@@ -59,60 +58,75 @@ async def get_all_employees(
     """
     Get all employees with basic analytics
     """
+    print("Fetching all employees from the database...")
     query = db.query(Employee)
 
     employees = query.all()
+    print(f"Total employees fetched: {len(employees)}")
     result = []
 
     for employee in employees:
+        print(f"Processing employee: {employee.id} - {employee.name}")
+
         # Get latest vibemeter response
         latest_vibe = (
             db.query(VibemeterData)
             .filter(VibemeterData.employee_id == employee.id)
-            .order_by(VibemeterData.response_date.desc())
+            .order_by(VibemeterData.date.desc())
             .first()
         )
+        print(f"Latest vibe for employee {employee.id}: {latest_vibe}")
 
         # Get leave data
         leave_balance = 30  # Default annual leave
         leave_taken = (
             db.execute(
                 text(
-                    "SELECT SUM(leave_days) FROM leaves WHERE employee_id = :employee_id AND EXTRACT(YEAR FROM start_date) = EXTRACT(YEAR FROM CURRENT_DATE)"
+                    "SELECT SUM(leave_days) FROM leaves_data WHERE employee_id = :employee_id AND EXTRACT(YEAR FROM start_date) = EXTRACT(YEAR FROM CURRENT_DATE)"
                 ),
                 {"employee_id": employee.id},
             ).scalar()
             or 0
         )
+        print(f"Leave taken for employee {employee.id}: {leave_taken}")
         leave_balance -= leave_taken
+        print(f"Leave balance for employee {employee.id}: {leave_balance}")
 
         # Get activity data
         activity_data = (
             db.execute(
                 text(
-                    "SELECT AVG(hours_worked) FROM activities WHERE employee_id = :employee_id ORDER BY date DESC LIMIT 3"
+                    "SELECT hours_worked FROM activity_data WHERE employee_id = :employee_id ORDER BY date DESC LIMIT 3"
                 ),
                 {"employee_id": employee.id},
-            ).scalar()
-            or 0
+            ).all()
+            
         )
+        #calculate average hours worked
+        if activity_data:
+            activity_data = sum([row[0] for row in activity_data]) / len(activity_data)
+        else:
+            activity_data = 0
+        print(f"Average hours worked for employee {employee.id}: {activity_data}")
 
         # Get performance data
         performance = db.execute(
             text(
-                "SELECT performance_rating FROM performances WHERE employee_id = :employee_id ORDER BY review_date DESC LIMIT 1"
+                "SELECT performance_rating FROM performance_data WHERE employee_id = :employee_id ORDER BY id DESC LIMIT 1"
             ),
             {"employee_id": employee.id},
         ).scalar()
+        print(f"Latest performance rating for employee {employee.id}: {performance}")
 
         # Get rewards count
         rewards_count = (
             db.execute(
-                text("SELECT COUNT(*) FROM rewards WHERE employee_id = :employee_id"),
+                text("SELECT COUNT(*) FROM rewards_data WHERE employee_id = :employee_id"),
                 {"employee_id": employee.id},
             ).scalar()
             or 0
         )
+        print(f"Rewards count for employee {employee.id}: {rewards_count}")
 
         result.append(
             EmployeeWithAnalytics(
@@ -125,6 +139,7 @@ async def get_all_employees(
             )
         )
 
+    print("Finished processing all employees.")
     return result
 
 
@@ -612,7 +627,7 @@ async def process_leave_data(db: Session, df: pd.DataFrame) -> pd.DataFrame:
                 position="HR Manager",
                 user_type=UserType.employee,
                 profile_image=None,
-                wellness_check_status=WellnessCheckStatus.not_recieved,
+                wellness_check_status=WellnessCheckStatus.not_received,
                 last_vibe="neutral",
                 immediate_attention=False,
             )
@@ -658,7 +673,7 @@ async def process_activity_data(db: Session, df: pd.DataFrame) -> pd.DataFrame:
                 position="HR Manager",
                 user_type=UserType.employee,
                 profile_image=None,
-                wellness_check_status=WellnessCheckStatus.not_recieved,
+                wellness_check_status=WellnessCheckStatus.not_received,
                 last_vibe="neutral",
                 immediate_attention=False,
             )
@@ -705,7 +720,7 @@ async def process_rewards_data(db: Session, df: pd.DataFrame) -> pd.DataFrame:
                 position="HR Manager",
                 user_type=UserType.employee,
                 profile_image=None,
-                wellness_check_status=WellnessCheckStatus.not_recieved,
+                wellness_check_status=WellnessCheckStatus.not_received,
                 last_vibe="neutral",
                 immediate_attention=False,
             )
@@ -750,7 +765,7 @@ async def process_performance_data(db: Session, df: pd.DataFrame) -> pd.DataFram
                 position="HR Manager",
                 user_type=UserType.employee,
                 profile_image=None,
-                wellness_check_status=WellnessCheckStatus.not_recieved,
+                wellness_check_status=WellnessCheckStatus.not_received,
                 last_vibe="neutral",
                 immediate_attention=False,
             )
@@ -796,7 +811,7 @@ async def process_vibemeter_data(db: Session, df: pd.DataFrame) -> pd.DataFrame:
                 position="HR Manager",
                 user_type=UserType.employee,
                 profile_image=None,
-                wellness_check_status=WellnessCheckStatus.not_recieved,
+                wellness_check_status=WellnessCheckStatus.not_received,
                 last_vibe="neutral",
                 immediate_attention=False,
             )
@@ -845,7 +860,7 @@ async def process_onboarding_data(db: Session, df: pd.DataFrame) -> pd.DataFrame
                 position="HR Manager",
                 user_type=UserType.employee,
                 profile_image=None,
-                wellness_check_status=WellnessCheckStatus.not_recieved,
+                wellness_check_status=WellnessCheckStatus.not_received,
                 last_vibe="neutral",
                 immediate_attention=False,
             )

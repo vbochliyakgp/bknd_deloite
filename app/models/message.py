@@ -11,7 +11,7 @@ class Message(Base):
     question = Column(Text, nullable=False)
     answer = Column(Text, nullable=False)
 
-    session = relationship("ChatSession", back_populates="messages")
+    # session = relationship("ChatSession", back_populates="messages")
 
     def update(self, **kwargs):
         for key, value in kwargs.items():

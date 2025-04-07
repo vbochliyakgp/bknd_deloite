@@ -17,7 +17,7 @@ class PerformanceData(Base):
     promotion_consideration = Column(Boolean, nullable=False, default=False)
 
     # Relationships
-    employee = relationship("Employee", back_populates="performance")
+    # employee = relationship("Employee", back_populates="performance")
 
     def update(self, **kwargs):
         """Update performance attributes."""

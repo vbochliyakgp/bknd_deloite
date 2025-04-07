@@ -14,7 +14,7 @@ class Settings(BaseSettings):
         "SECRET_KEY", "your-secret-key-here-change-in-production"
     )
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 1 week
 
     # In your config.py file
     SUPABASE_USER: str = "postgres"  # Usually "postgres"

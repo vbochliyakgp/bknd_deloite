@@ -16,7 +16,7 @@ class Reward(Base):
     points = Column(Integer, nullable=False)
 
     # Relationships
-    employee = relationship("Employee", back_populates="rewards")
+    # employee = relationship("Employee", back_populates="rewards")
 
     def update(self, **kwargs):
         """Update reward attributes."""

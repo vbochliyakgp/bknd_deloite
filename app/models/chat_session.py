@@ -21,10 +21,7 @@ class ChatSession(Base):
     risk_factors = Column(Text)
 
     # Relationships
-    employee = relationship("Employee", back_populates="chat_sessions")
-    messages = relationship(
-        "Message", back_populates="session", cascade="all, delete-orphan"
-    )
+    # employee = relationship("Employee", back_populates="chat_sessions")
 
     def update(self, **kwargs):
         """Update chat session attributes."""

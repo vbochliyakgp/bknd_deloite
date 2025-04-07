@@ -11,7 +11,7 @@ class UserType(str, Enum):
 
 
 class WellnessCheckStatus(str, Enum):
-    not_recieved = "not_recieved"
+    not_received = "not_received"
     not_started = "not_started"
     completed = "completed"
 
@@ -49,8 +49,7 @@ class EmployeeUpdate(BaseModel):
 
 
 class EmployeeInDBBase(EmployeeBase):
-    created_at: datetime
-    updated_at: datetime
+    pass
 
     class Config:
         orm_mode = True

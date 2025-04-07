@@ -17,7 +17,7 @@ class Leave(Base):
     leave_days = Column(Integer, nullable=False)
 
     # Relationships
-    employee = relationship("Employee", back_populates="leaves")
+    # employee = relationship("Employee", back_populates="leaves")
 
     # Ensure end_date is not before start_date
     __table_args__ = (

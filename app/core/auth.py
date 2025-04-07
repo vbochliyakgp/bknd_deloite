@@ -23,14 +23,15 @@ async def get_current_user(
     Validate token and return current user
     """
     try:
+        print("token here>>>",token)
         payload = jwt.decode(
             token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
         )
         token_data = TokenPayload(**payload)
-    except (JWTError, ValidationError):
+    except (JWTError, ValidationError) as e:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Could not validate credentials",
+            detail="Could not validate credentials"+str(e),
         )
 
     user = db.query(Employee).filter(Employee.id == token_data.sub).first()
@@ -39,11 +40,7 @@ async def get_current_user(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found",
         )
-    if not bool(user.is_active):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Inactive user",
-        )
+
     return user
 
 
@@ -70,11 +67,7 @@ async def get_current_employee(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Employee not found",
         )
-    if not bool(employee.is_active):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Inactive employee",
-        )
+
     return employee
 
 
@@ -84,7 +77,7 @@ def get_current_active_admin(
     """
     Check if current user is admin
     """
-    if current_user.role.value != UserType.admin.value:
+    if current_user.user_type != UserType.admin:#no_type_err
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions",
@@ -98,7 +91,7 @@ def get_current_active_hr(
     """
     Check if current user is HR
     """
-    if current_user.role.value != UserType.hr.value:
+    if current_user.user_type != UserType.hr:#no_type_err
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions",
