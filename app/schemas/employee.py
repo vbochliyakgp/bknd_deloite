@@ -11,7 +11,7 @@ class UserType(str, Enum):
 
 
 class WellnessCheckStatus(str, Enum):
-    not_recieved = "not_recieved"
+    not_received = "not_received"
     not_started = "not_started"
     completed = "completed"
 

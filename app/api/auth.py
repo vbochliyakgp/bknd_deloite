@@ -8,6 +8,7 @@ from app.models.employee import Employee
 from app.schemas.auth import Token, EmployeeLogin
 from app.core.security import verify_password, create_access_token
 from app.config import settings
+from app.models.employee import UserType
 
 router = APIRouter()
 
@@ -26,12 +27,6 @@ async def login_user(user_login: EmployeeLogin, db: Session = Depends(get_db)):
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # if not bool(user.is_active):
-    #     raise HTTPException(
-    #         status_code=status.HTTP_400_BAD_REQUEST,
-    #         detail="Inactive user",
-    #     )
-
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         subject=user.id, expires_delta=access_token_expires
@@ -47,7 +42,7 @@ async def login_employee(employee_login: EmployeeLogin, db: Session = Depends(ge
     """
     employee = (
         db.query(Employee)
-        .filter(Employee.employee_id == employee_login.employee_id)
+        .filter(Employee.id == employee_login.employee_id)
         .first()
     )
 
@@ -60,11 +55,12 @@ async def login_employee(employee_login: EmployeeLogin, db: Session = Depends(ge
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    if not bool(employee.is_active):
+    if employee.user_type != UserType.employee:#no_type_err
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Inactive employee",
+            detail="Invalid employee type",
         )
+    
 
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(

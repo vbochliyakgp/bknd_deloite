@@ -1,14 +1,8 @@
 from sqlalchemy import (
     Column,
     String,
-    Integer,
     Boolean,
-    Text,
-    Date,
-    ForeignKey,
-    DateTime,
     Enum,
-    CheckConstraint,
 )
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.sql import func
@@ -25,13 +19,13 @@ class UserType(enum.Enum):
 
 
 class WellnessCheckStatus(enum.Enum):
-    not_recieved = "not_recieved"
+    not_received = "not_received"
     not_started = "not_started"
     completed = "completed"
 
 
 class Employee(Base):
-    __tablename__ = "employeess"
+    __tablename__ = "employees"
 
     id = Column(String(10), primary_key=True)
     name = Column(String(100), nullable=False)
@@ -45,33 +39,10 @@ class Employee(Base):
     wellness_check_status = Column(
         Enum(WellnessCheckStatus),
         nullable=False,
-        default=WellnessCheckStatus.not_recieved,
+        default=WellnessCheckStatus.not_received,
     )
     last_vibe = Column(String(20), nullable=False)
     immediate_attention = Column(Boolean, nullable=False)
-
-    # Relationships
-    chat_sessions = relationship(
-        "ChatSession", back_populates="employee", cascade="all, delete-orphan"
-    )
-    activity_data = relationship(
-        "ActivityData", back_populates="employee", cascade="all, delete-orphan"
-    )
-    leaves = relationship(
-        "LeaveData", back_populates="employee", cascade="all, delete-orphan"
-    )
-    onboarding = relationship(
-        "OnboardingData", back_populates="employee", cascade="all, delete-orphan"
-    )
-    rewards = relationship(
-        "RewardData", back_populates="employee", cascade="all, delete-orphan"
-    )
-    performance = relationship(
-        "PerformanceData", back_populates="employee", cascade="all, delete-orphan"
-    )
-    vibemeter = relationship(
-        "VibemeterData", back_populates="employee", cascade="all, delete-orphan"
-    )
 
     def update(self, **kwargs):
         """Update employee attributes."""

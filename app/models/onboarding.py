@@ -16,7 +16,7 @@ class Onboarding(Base):
     training_completed = Column(Boolean, nullable=False, default=False)
 
     # Relationships
-    employee = relationship("Employee", back_populates="onboarding")
+    # employee = relationship("Employee", back_populates="onboarding")
 
     def update(self, **kwargs):
         """Update onboarding attributes."""

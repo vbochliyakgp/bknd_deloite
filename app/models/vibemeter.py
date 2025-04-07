@@ -17,7 +17,7 @@ class VibemeterData(Base):
     emotion_zone = Column(String(50), nullable=False)
 
     # Relationships
-    employee = relationship("Employee", back_populates="vibemeter")
+    # employee = relationship("Employee", back_populates="vibemeter")
 
     # Ensure vibe_score is within a reasonable range (e.g., 1-10)
     __table_args__ = (

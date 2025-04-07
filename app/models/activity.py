@@ -18,7 +18,7 @@ class Activity(Base):
     teams_messages_sent = Column(Integer, nullable=False)
 
     # Relationships
-    employee = relationship("Employee", back_populates="activity_data")
+    # employee = relationship("Employee", back_populates="activity_data")
 
     def update(self, **kwargs):
         """Update activity attributes."""

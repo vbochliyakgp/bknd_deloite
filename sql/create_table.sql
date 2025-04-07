@@ -1,3 +1,8 @@
+-- Create the custom enum types first
+CREATE TYPE user_type_enum AS ENUM ('admin', 'hr', 'employee');
+CREATE TYPE wellness_check_status_enum AS ENUM ('not_received', 'not_started', 'completed');
+
+-- Create the tables
 CREATE TABLE IF NOT EXISTS employees (
     id CHAR(10) NOT NULL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
@@ -6,17 +11,18 @@ CREATE TABLE IF NOT EXISTS employees (
     phone CHAR(10) NOT NULL,
     department VARCHAR(50),
     position VARCHAR(100),
-    user_type ENUM('admin', 'hr', 'employee') NOT NULL,
+    user_type user_type_enum NOT NULL,
     profile_image VARCHAR(255),
-    wellness_check_status ENUM('not_recieved', 'not_started', 'completed') NOT NULL DEFAULT 'not_recieved',
+    wellness_check_status wellness_check_status_enum NOT NULL DEFAULT 'not_received',
     last_vibe VARCHAR(20) NOT NULL,
-    immediate_attention BOOLEAN NOT NULL,
+    immediate_attention BOOLEAN NOT NULL
 );
+
 CREATE TABLE IF NOT EXISTS chat_sessions (
     employee_id CHAR(10) NOT NULL,
     session_id CHAR(10) NOT NULL PRIMARY KEY,
-    start_time TIMESTAMP WITH TIME ZONE DEFAULT now(),
-    end_time TIMESTAMP WITH TIME ZONE,
+    start_time TIMESTAMPTZ DEFAULT now(),
+    end_time TIMESTAMPTZ,
     summary TEXT,
     escalated BOOLEAN DEFAULT FALSE,
     suggestions TEXT,
@@ -24,6 +30,7 @@ CREATE TABLE IF NOT EXISTS chat_sessions (
     risk_score INT,
     FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
 );
+
 CREATE TABLE IF NOT EXISTS chat_messages (
     id SERIAL PRIMARY KEY,
     session_id CHAR(10) NOT NULL,
@@ -31,6 +38,7 @@ CREATE TABLE IF NOT EXISTS chat_messages (
     answer TEXT NOT NULL,
     FOREIGN KEY (session_id) REFERENCES chat_sessions(session_id) ON DELETE CASCADE
 );
+
 CREATE TABLE IF NOT EXISTS activity_data (
     id SERIAL PRIMARY KEY,
     employee_id CHAR(10) NOT NULL,
@@ -41,6 +49,7 @@ CREATE TABLE IF NOT EXISTS activity_data (
     teams_messages_sent INT NOT NULL,
     FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
 );
+
 CREATE TABLE IF NOT EXISTS leaves_data (
     id SERIAL PRIMARY KEY,
     employee_id CHAR(10) NOT NULL,
@@ -50,6 +59,7 @@ CREATE TABLE IF NOT EXISTS leaves_data (
     leave_days INT NOT NULL,
     FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
 );
+
 CREATE TABLE IF NOT EXISTS onboarding_data (
     id SERIAL PRIMARY KEY,
     employee_id CHAR(10) NOT NULL,
@@ -59,6 +69,7 @@ CREATE TABLE IF NOT EXISTS onboarding_data (
     training_completed BOOLEAN NOT NULL DEFAULT FALSE,
     FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
 );
+
 CREATE TABLE IF NOT EXISTS rewards_data (
     id SERIAL PRIMARY KEY,
     employee_id CHAR(10) NOT NULL,
@@ -67,6 +78,7 @@ CREATE TABLE IF NOT EXISTS rewards_data (
     points INT NOT NULL,
     FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
 );
+
 CREATE TABLE IF NOT EXISTS performance_data (
     id SERIAL PRIMARY KEY,
     employee_id CHAR(10) NOT NULL,
@@ -76,6 +88,7 @@ CREATE TABLE IF NOT EXISTS performance_data (
     promotion_consideration BOOLEAN NOT NULL DEFAULT FALSE,
     FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
 );
+
 CREATE TABLE IF NOT EXISTS vibemeter_data (
     id SERIAL PRIMARY KEY,
     employee_id CHAR(10) NOT NULL,

@@ -142,7 +142,7 @@ class AnalyticsService:
         alerts = []
 
         # Get all active employees
-        employees = db.query(Employee).filter(Employee.is_active == True).all()
+        employees = db.query(Employee).all()
 
         for employee in employees:
             # Get recent vibe responses (last 10 days)
@@ -261,7 +261,6 @@ class AnalyticsService:
         # Get all active employees count
         total_employees = (
             db.query(func.count(Employee.id))
-            .filter(Employee.is_active == True)
             .scalar()
         )
 
@@ -306,7 +305,6 @@ class AnalyticsService:
             dept_employees = (
                 db.query(func.count(Employee.id))
                 .filter(Employee.department == dept_name)
-                .filter(Employee.is_active == True)
                 .scalar()
             )
 
