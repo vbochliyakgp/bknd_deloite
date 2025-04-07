@@ -62,11 +62,13 @@ from app.models.employee import Employee, WellnessCheckStatus
 from app.models.vibemeter import VibemeterData
 from app.models.activity import Activity
 from app.models.chat_session import ChatSession
+from collections import defaultdict
 from app.schemas.dashboard import (
     DashboardResponse,
     VibemeterTrendData,
     VibeDistribution,
 )
+
 
 
 router = APIRouter()
@@ -281,6 +283,7 @@ async def get_employee_analytics(
         summary=session.summary,
         suggestions=session.suggestions,
         risk_score=session.risk_score,
+        risk_factor=session.risk_factors,
         start_time=session.start_time,
         end_time=session.end_time,
     )
@@ -409,134 +412,61 @@ async def get_dashboard_data(
     Get all dashboard data for the HR panel.
     """
     print("Fetching dashboard data...............................................")
-    # Get total employees count
-    total_employees = db.query(func.count(Employee.id)).scalar()
-
-    # Get latest vibemeter data for all employees
-    latest_vibes_subq = (
+       # Subquery to get the most recent vibe score for each employee
+    subquery = (
         db.query(
-            VibemeterData.employee_id, func.max(VibemeterData.date).label("max_date")
+            VibemeterData.employee_id,
+            VibemeterData.vibe_score,
+            func.row_number().over(
+                partition_by=VibemeterData.employee_id,
+                order_by=desc(VibemeterData.date)
+            ).label("row_num")
         )
-        .group_by(VibemeterData.employee_id)
         .subquery()
     )
-
-    latest_vibes = (
-        db.query(VibemeterData)
-        .join(
-            latest_vibes_subq,
-            (VibemeterData.employee_id == latest_vibes_subq.c.employee_id)
-            & (VibemeterData.date == latest_vibes_subq.c.max_date),
-        )
-        .all()
-    )
-
-    # Calculate positive and negative vibes
-    positive_vibes = sum(1 for v in latest_vibes if v.vibe_score >= 6)
-    negative_vibes = sum(1 for v in latest_vibes if v.vibe_score < 6)
-
-    # Get employees needing attention
+    
+    # Get employees with their most recent vibe scores
+    most_recent_vibes = db.query(subquery).filter(subquery.c.row_num == 1).all()
+    
+    # Calculate statistics
+    high_vibe_count = 0  # vibe_score > 3
+    low_vibe_count = 0   # vibe_score < 3
+    vibe_distribution = defaultdict(int)
+    
+    for vibe in most_recent_vibes:
+        if vibe.vibe_score > 3:
+            high_vibe_count += 1
+        elif vibe.vibe_score < 3:
+            low_vibe_count += 1
+        
+        vibe_distribution[vibe.vibe_score] += 1
+    
+    # Get total number of chat sessions
+    total_chat_sessions = db.query(func.count(ChatSession.session_id)).scalar() or 0
+    
+    # Get number of employees needing attention
     employees_needing_attention = (
         db.query(func.count(Employee.id))
         .filter(Employee.immediate_attention == True)
-        .scalar()
+        .scalar() or 0
     )
-
-    # Get AI conversations that need attention
-    conversations_needing_attention = (
-        db.query(func.count(ChatSession.session_id))
-        .filter(ChatSession.escalated == True)
-        .scalar()
-    )
-
-    # Get vibemeter trend data (last 30 days)
-    last_30_days = datetime.now().date() - timedelta(days=30)
-    vibemeter_trend = (
-        db.query(
-            VibemeterData.date, func.avg(VibemeterData.vibe_score).label("avg_score")
-        )
-        .filter(VibemeterData.date >= last_30_days)
-        .group_by(VibemeterData.date)
-        .order_by(VibemeterData.date)
-        .all()
-    )
-
-    vibemeter_trend_data = [
-        {"date": entry.date.strftime("%b %d"), "score": float(entry.avg_score)}
-        for entry in vibemeter_trend
-    ]
-
-    # Get vibe distribution
-    vibe_distribution = (
-        db.query(
-            case(
-                [
-                    (VibemeterData.vibe_score <= 3, "Critical"),
-                    (VibemeterData.vibe_score <= 5, "Concerned"),
-                    (VibemeterData.vibe_score <= 7, "Neutral"),
-                    (VibemeterData.vibe_score <= 8, "Happy"),
-                    (VibemeterData.vibe_score <= 10, "Very Happy"),
-                ],
-                else_="Unknown",
-            ).label("emotion_category"),
-            func.count().label("count"),
-        )
-        .filter(VibemeterData.date >= last_30_days)
-        .group_by("emotion_category")
-        .all()
-    )
-
-    total_responses = sum(entry.count for entry in vibe_distribution)
-
-    vibe_distribution_data = {
-        "categories": [],
-        "counts": [],
-        "percentages": [],
-        "total_responses": total_responses,
+    
+    # Convert defaultdict to regular dict for JSON serialization
+    vibe_score_distribution = dict(vibe_distribution)
+    
+    # Fill in missing scores (1-10) with 0 for better visualization
+    for score in range(1, 11):
+        if score not in vibe_score_distribution:
+            vibe_score_distribution[score] = 0
+    
+    return {
+        "employees_with_high_vibe": high_vibe_count,
+        "employees_with_low_vibe": low_vibe_count,
+        "total_chat_sessions": total_chat_sessions,
+        "employees_needing_attention": employees_needing_attention,
+        "vibe_score_distribution": vibe_score_distribution
     }
 
-    for entry in vibe_distribution:
-        vibe_distribution_data["categories"].append(entry.emotion_category)
-        vibe_distribution_data["counts"].append(entry.count)
-        vibe_distribution_data["percentages"].append(
-            round(entry.count / total_responses * 100)
-        )
-
-    # Assemble the complete dashboard response
-    dashboard_data = {
-        "positive_vibes": {
-            "percentage": (
-                round(positive_vibes / total_employees * 100, 1)
-                if total_employees > 0
-                else 0
-            ),
-            "count": positive_vibes,
-        },
-        "negative_vibes": {
-            "percentage": (
-                round(negative_vibes / total_employees * 100, 1)
-                if total_employees > 0
-                else 0
-            ),
-            "count": negative_vibes,
-        },
-        "employees_needing_attention": {
-            "count": employees_needing_attention,
-            "percentage": (
-                round(employees_needing_attention / total_employees * 100, 1)
-                if total_employees > 0
-                else 0
-            ),
-        },
-        "ai_conversations": {
-            "total": db.query(func.count(ChatSession.session_id)).scalar(),
-            "needing_attention": conversations_needing_attention,
-        },
-        "vibemeter_trend": vibemeter_trend_data,
-        "vibe_distribution": vibe_distribution_data,
-    }
-
-    return dashboard_data
 
 
 def extract_risk_factors(suggestions_text: str) -> List[str]:

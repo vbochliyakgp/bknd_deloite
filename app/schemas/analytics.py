@@ -21,6 +21,7 @@ class EmployeeSessionAnalyticsNew(BaseModel):
     summary: str
     suggestions: str
     risk_score: int
+    risk_factor: str
     start_time: datetime
     end_time: datetime
 
