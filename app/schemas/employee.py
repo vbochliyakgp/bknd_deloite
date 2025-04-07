@@ -1,40 +1,66 @@
-
 # app/schemas/employee.py
-from typing import Optional, List
+
+from typing import Optional
 from pydantic import BaseModel, EmailStr
 from datetime import datetime
+from enum import Enum
+
+
+class EmployeeRole(str, Enum):
+    ADMIN = "0"
+    HR = "1"
+    EMPLOYEE = "2"
+
+
+class WellnessCheckStatus(str, Enum):
+    not_received = "0"
+    not_started = "1"
+    completed = "2"
+
 
 class EmployeeBase(BaseModel):
-    employee_id: str
+    id: str
     name: str
     email: EmailStr
+    phone: Optional[str] = None
+    role: EmployeeRole
     department: str
     position: str
-    manager_id: Optional[int] = None
+    profile_image: Optional[str] = None
+    wellness_check_status: WellnessCheckStatus
+    last_vibe: Optional[str] = None
+    immediate_action: bool
+
 
 class EmployeeCreate(EmployeeBase):
     password: str
+
 
 class EmployeeUpdate(BaseModel):
     name: Optional[str] = None
     email: Optional[EmailStr] = None
     password: Optional[str] = None
+    phone: Optional[str] = None
+    role: Optional[EmployeeRole] = None
     department: Optional[str] = None
     position: Optional[str] = None
-    manager_id: Optional[int] = None
-    is_active: Optional[bool] = None
+    profile_image: Optional[str] = None
+    wellness_check_status: Optional[WellnessCheckStatus] = None
+    last_vibe: Optional[str] = None
+    immediate_action: Optional[bool] = None
+
 
 class EmployeeInDBBase(EmployeeBase):
-    id: int
-    is_active: bool
     created_at: datetime
     updated_at: datetime
 
     class Config:
         orm_mode = True
 
+
 class EmployeeResponse(EmployeeInDBBase):
     pass
+
 
 class EmployeeWithAnalytics(EmployeeResponse):
     recent_vibe: Optional[str] = None

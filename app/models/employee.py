@@ -1,34 +1,45 @@
 # app/models/employee.py
-from sqlalchemy import Column, String, Integer, ForeignKey, Boolean, Text, Date
+from sqlalchemy import Column, String, Integer, ForeignKey, Boolean, Text, Date,Enum
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from sqlalchemy.sql.sqltypes import TIMESTAMP
 from app.database import Base
+import enum
+
+
+
+class EmployeeRole(str, enum.Enum):
+    ADMIN = 0
+    HR = 1
+    EMPLOYEE = 2
+
+class WellnessCheckStatus(enum.Enum):
+    not_received = 0
+    not_started = 1
+    completed = 2
 
 
 class Employee(Base):
     __tablename__ = "employees"
 
-    id = Column(Integer, primary_key=True, index=True)
-    employee_id = Column(String, unique=True, index=True)  # Company ID (e.g., DEL123)
+    id = Column(String, primary_key=True, index=True)
     name = Column(String)
     email = Column(String, unique=True, index=True)
+    hashed_password = Column(String)
     phone = Column(String)  # Added field
+    role =  Column(Enum(EmployeeRole), nullable=False)
     department = Column(String)
     position = Column(String)
-    manager_id = Column(Integer, ForeignKey("employees.id"), nullable=True)
-    join_date = Column(Date)  # Added field
     profile_image = Column(String, nullable=True)  # Added field
-    status = Column(String)  # Added field
-    last_vibe = Column(String, nullable=True)  # Added field
-    is_active = Column(Boolean, default=True)
+    wellness_check_status = Column(Enum(WellnessCheckStatus), nullable=False)
+    last_vibe = Column(String)
+    immediate_action = Column(Boolean)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
     updated_at = Column(
         TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
     # Relationships
-    manager = relationship("Employee", remote_side=[id], backref="team_members")
     vibe_responses = relationship(
         "VibemeterResponse", back_populates="employee"
     )  # Renamed from vibemeter_responses
