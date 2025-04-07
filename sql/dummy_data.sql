@@ -115,16 +115,16 @@ INSERT INTO rewards_data (employee_id, reward_type, reward_date, points) VALUES
 
 -- Insert dummy data into performance_data table
 INSERT INTO performance_data (employee_id, review_period, performance_rating, manager_feedback, promotion_consideration) VALUES
-('EMP0000001', '2024-12-31', 'Exceeds Expectations', 'Consistently delivers high-quality work and demonstrates strong technical skills.', TRUE),
-('EMP0000002', '2024-12-31', 'Meets Expectations', 'Effectively manages marketing campaigns and works well with cross-functional teams.', FALSE),
-('EMP0000003', '2024-12-31', 'Exceeds Expectations', 'Excellent leadership in HR initiatives and policy development.', TRUE),
-('EMP0000004', '2024-12-31', 'Meets Expectations', 'Accurate financial analysis and timely reporting.', FALSE),
-('EMP0000005', '2024-12-31', 'Exceeds Expectations', 'Outstanding system management and proactive issue resolution.', TRUE),
-('EMP0000006', '2024-12-31', 'Meets Expectations', 'Consistently meets sales targets and maintains good client relationships.', FALSE),
-('EMP0000007', '2024-12-31', 'Needs Improvement', 'Technical skills are strong but needs to improve team collaboration and time management.', FALSE),
-('EMP0000008', '2024-12-31', 'Exceeds Expectations', 'Exceptional customer support and problem-solving skills.', TRUE),
-('EMP0000009', '2024-12-31', 'Meets Expectations', 'Effective product management and feature prioritization.', FALSE),
-('EMP0000010', '2024-12-31', 'Exceeds Expectations', 'Excellent HR program development and implementation.', TRUE);
+('EMP0000001', '2024-12-31',4, 'Exceeds Expectations', TRUE),
+('EMP0000002', '2024-12-31',3, 'Meets Expectations', FALSE),
+('EMP0000003', '2024-12-31', 2,'Exceeds Expectations', TRUE),
+('EMP0000004', '2024-12-31', 0,'Meets Expectations', FALSE),
+('EMP0000005', '2024-12-31',2, 'Exceeds Expectations', TRUE),
+('EMP0000006', '2024-12-31',1, 'Meets Expectations', FALSE),
+('EMP0000007', '2024-12-31',5, 'Needs Improvement', FALSE),
+('EMP0000008', '2024-12-31',4, 'Exceeds Expectations', TRUE),
+('EMP0000009', '2024-12-31',2, 'Meets Expectations',  FALSE),
+('EMP0000010', '2024-12-31', 0,'Exceeds Expectations', TRUE);
 
 -- Insert dummy data into vibemeter_data table
 INSERT INTO vibemeter_data (employee_id, date, vibe_score, emotion_zone) VALUES

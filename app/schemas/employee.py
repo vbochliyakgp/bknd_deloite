@@ -49,8 +49,7 @@ class EmployeeUpdate(BaseModel):
 
 
 class EmployeeInDBBase(EmployeeBase):
-    created_at: datetime
-    updated_at: datetime
+    pass
 
     class Config:
         orm_mode = True

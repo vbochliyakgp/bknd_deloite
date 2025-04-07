@@ -72,7 +72,7 @@ async def get_all_employees(
         latest_vibe = (
             db.query(VibemeterData)
             .filter(VibemeterData.employee_id == employee.id)
-            .order_by(VibemeterData.response_date.desc())
+            .order_by(VibemeterData.date.desc())
             .first()
         )
         print(f"Latest vibe for employee {employee.id}: {latest_vibe}")
@@ -82,7 +82,7 @@ async def get_all_employees(
         leave_taken = (
             db.execute(
                 text(
-                    "SELECT SUM(leave_days) FROM leaves WHERE employee_id = :employee_id AND EXTRACT(YEAR FROM start_date) = EXTRACT(YEAR FROM CURRENT_DATE)"
+                    "SELECT SUM(leave_days) FROM leaves_data WHERE employee_id = :employee_id AND EXTRACT(YEAR FROM start_date) = EXTRACT(YEAR FROM CURRENT_DATE)"
                 ),
                 {"employee_id": employee.id},
             ).scalar()
@@ -96,18 +96,23 @@ async def get_all_employees(
         activity_data = (
             db.execute(
                 text(
-                    "SELECT AVG(hours_worked) FROM activities WHERE employee_id = :employee_id ORDER BY date DESC LIMIT 3"
+                    "SELECT hours_worked FROM activity_data WHERE employee_id = :employee_id ORDER BY date DESC LIMIT 3"
                 ),
                 {"employee_id": employee.id},
-            ).scalar()
-            or 0
+            ).all()
+            
         )
+        #calculate average hours worked
+        if activity_data:
+            activity_data = sum([row[0] for row in activity_data]) / len(activity_data)
+        else:
+            activity_data = 0
         print(f"Average hours worked for employee {employee.id}: {activity_data}")
 
         # Get performance data
         performance = db.execute(
             text(
-                "SELECT performance_rating FROM performances WHERE employee_id = :employee_id ORDER BY review_date DESC LIMIT 1"
+                "SELECT performance_rating FROM performance_data WHERE employee_id = :employee_id ORDER BY id DESC LIMIT 1"
             ),
             {"employee_id": employee.id},
         ).scalar()
@@ -116,7 +121,7 @@ async def get_all_employees(
         # Get rewards count
         rewards_count = (
             db.execute(
-                text("SELECT COUNT(*) FROM rewards WHERE employee_id = :employee_id"),
+                text("SELECT COUNT(*) FROM rewards_data WHERE employee_id = :employee_id"),
                 {"employee_id": employee.id},
             ).scalar()
             or 0

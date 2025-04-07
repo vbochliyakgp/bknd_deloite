@@ -83,7 +83,7 @@ CREATE TABLE IF NOT EXISTS performance_data (
     id SERIAL PRIMARY KEY,
     employee_id CHAR(10) NOT NULL,
     review_period DATE NOT NULL,
-    performance_rating VARCHAR(50) NOT NULL,
+    performance_rating INT NOT NULL,
     manager_feedback TEXT,
     promotion_consideration BOOLEAN NOT NULL DEFAULT FALSE,
     FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
