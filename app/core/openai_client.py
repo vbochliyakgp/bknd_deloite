@@ -2,7 +2,7 @@
 from openai import AsyncOpenAI
 from typing import List, Dict, Any, Optional
 from app.config import settings
-from app.models.message import MessageSender
+# from app.models.message import MessageSender
 from sqlalchemy.orm import Session
 import json
 import logging
@@ -35,7 +35,7 @@ class OpenAIClient:
 
             # Add previous messages
             for prev_msg in previous_messages:
-                if prev_msg["sender"] == MessageSender.BOT:
+                if prev_msg["sender"] == 0:
                     formatted_messages.append(
                         {"role": "assistant", "content": prev_msg["content"]}
                     )

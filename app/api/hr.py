@@ -631,7 +631,7 @@ async def process_leave_data(db: Session, df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-async def process_activity_data(db: Session, df: pd.DataFrame) -> int:
+async def process_activity_data(db: Session, df: pd.DataFrame) -> pd.DataFrame:
     """
     Process activity data from CSV
     """
@@ -678,7 +678,7 @@ async def process_activity_data(db: Session, df: pd.DataFrame) -> int:
     return df
 
 
-async def process_rewards_data(db: Session, df: pd.DataFrame) -> int:
+async def process_rewards_data(db: Session, df: pd.DataFrame) -> pd.DataFrame:
     """
     Process rewards data from CSV
     """
@@ -723,7 +723,7 @@ async def process_rewards_data(db: Session, df: pd.DataFrame) -> int:
     return df
 
 
-async def process_performance_data(db: Session, df: pd.DataFrame) -> int:
+async def process_performance_data(db: Session, df: pd.DataFrame) -> pd.DataFrame:
     """
     Process performance data from CSV
     """
@@ -769,7 +769,7 @@ async def process_performance_data(db: Session, df: pd.DataFrame) -> int:
     return df
 
 
-async def process_vibemeter_data(db: Session, df: pd.DataFrame) -> int:
+async def process_vibemeter_data(db: Session, df: pd.DataFrame) -> pd.DataFrame:
     """
     Process vibemeter data from CSV
     """
@@ -816,7 +816,7 @@ async def process_vibemeter_data(db: Session, df: pd.DataFrame) -> int:
     return df
 
 
-async def process_onboarding_data(db: Session, df: pd.DataFrame) -> int:
+async def process_onboarding_data(db: Session, df: pd.DataFrame) -> pd.DataFrame:
     """
     Process onboarding data from CSV - this would typically create new employees
     """

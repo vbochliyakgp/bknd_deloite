@@ -23,7 +23,7 @@ class ChatSession(Base):
     # Relationships
     employee = relationship("Employee", back_populates="chat_sessions")
     messages = relationship(
-        "ChatMessage", back_populates="session", cascade="all, delete-orphan"
+        "Message", back_populates="session", cascade="all, delete-orphan"
     )
 
     def update(self, **kwargs):
