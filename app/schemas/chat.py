@@ -2,8 +2,6 @@
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel
 from datetime import datetime
-from app.models.chat_session import SessionStatus
-from app.models.message import MessageSender
 
 
 class MessageBaseNew(BaseModel):
@@ -14,18 +12,17 @@ class MessageBaseNew(BaseModel):
 
 
 class MessageBase(BaseModel):
-    sender: MessageSender
-    content: str
+    question: str
+    answer: str
 
 
 class MessageCreate(MessageBase):
-    chat_session_id: int
+    session_id: str
 
 
 class MessageInDBBase(MessageBase):
     id: int
-    chat_session_id: int
-    timestamp: datetime
+    session_id: str
 
     class Config:
         orm_mode = True
@@ -43,56 +40,33 @@ class ChatSessionBaseNew(BaseModel):
 
 
 class ChatSessionBase(BaseModel):
-    employee_id: int
-    session_status: SessionStatus = SessionStatus.ACTIVE
+    employee_id: str
     summary: Optional[str] = None
-    escalated_to_hr: bool = False
-    escalation_reason: Optional[str] = None
+    escalated: bool = False
+    suggestions: Optional[str] = None
+    risk_score: Optional[int] = None
 
 
 class ChatSessionCreate(ChatSessionBase):
-    pass
+    session_id: str
 
 
 class ChatSessionUpdate(BaseModel):
-    session_status: Optional[SessionStatus] = None
     summary: Optional[str] = None
-    escalated_to_hr: Optional[bool] = None
-    escalation_reason: Optional[str] = None
+    escalated: Optional[bool] = None
+    suggestions: Optional[str] = None
+    risk_score: Optional[int] = None
     end_time: Optional[datetime] = None
 
 
-class ChatSessionInDBBase(ChatSessionBase):
-    id: int
+class ChatSessionResponse(ChatSessionBase):
+    session_id: str
     start_time: datetime
     end_time: Optional[datetime] = None
-    created_at: datetime
-    updated_at: datetime
 
     class Config:
         orm_mode = True
 
 
-class ChatSessionResponse(ChatSessionInDBBase):
-    pass
-
-
 class ChatSessionWithMessages(ChatSessionResponse):
-    messages: List[MessageResponse] = []
-
-
-class ChatNextMessageRequest(BaseModel):
-    chat_session_id: int
-    message: str
-
-
-class Message(BaseModel):
-    text: str
-    audio: Optional[str] = None
-    lipsync: Optional[Dict[str, Any]] = None
-    facialExpression: str
-    animation: str
-
-
-class ChatResponse(BaseModel):
-    messages: List[Message]
+    messages: List[MessageResponse]
