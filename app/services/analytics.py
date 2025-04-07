@@ -8,12 +8,12 @@ import numpy as np
 from collections import Counter
 
 from app.models.employee import Employee
-from app.models.vibemeter import VibemeterResponse, EmotionZone
+from app.models.vibemeter import VibemeterData
 from app.models.leave import Leave
 from app.models.activity import Activity
-from app.models.performance import Performance
+from app.models.performance import PerformanceData
 from app.models.rewards import Reward
-from app.models.chat_session import ChatSession, SessionStatus
+from app.models.chat_session import ChatSession
 from app.schemas.analytics import EmployeeAlert, EmployeeSessionAnalytics, DailyReport
 
 
@@ -29,9 +29,9 @@ class AnalyticsService:
 
         # Get vibemeter data
         vibe_history = (
-            db.query(VibemeterResponse)
-            .filter(VibemeterResponse.employee_id == employee_id)
-            .order_by(desc(VibemeterResponse.response_date))
+            db.query(VibemeterData)
+            .filter(VibemeterData.employee_id == employee_id)
+            .order_by(desc(VibemeterData.date))
             .limit(30)
             .all()
         )
@@ -62,9 +62,9 @@ class AnalyticsService:
 
         # Get performance data
         latest_performance = (
-            db.query(Performance)
-            .filter(Performance.employee_id == employee_id)
-            .order_by(desc(Performance.review_date))
+            db.query(PerformanceData)
+            .filter(PerformanceData.employee_id == employee_id)
+            .order_by(desc(PerformanceData.id))
             .first()
         )
 
@@ -150,12 +150,10 @@ class AnalyticsService:
         for employee in employees:
             # Get recent vibe responses (last 10 days)
             recent_vibes = (
-                db.query(VibemeterResponse)
-                .filter(VibemeterResponse.employee_id == employee.id)
-                .filter(
-                    VibemeterResponse.response_date >= date.today() - timedelta(days=10)
-                )
-                .order_by(VibemeterResponse.response_date)
+                db.query(VibemeterData)
+                .filter(VibemeterData.employee_id == employee.id)
+                .filter(VibemeterData.date >= date.today() - timedelta(days=10))
+                .order_by(VibemeterData.date)
                 .all()
             )
 
@@ -163,7 +161,8 @@ class AnalyticsService:
             negative_emotions = [
                 v
                 for v in recent_vibes
-                if v.emotion_zone in [EmotionZone.FRUSTRATED, EmotionZone.SAD]
+                if v.emotion_zone
+                in ["Sad Zone", "Leaning to Sad Zone", "Frustrated Zone"]
             ]
             if len(negative_emotions) >= 3 and len(recent_vibes) >= 5:
                 alerts.append(
@@ -231,9 +230,9 @@ class AnalyticsService:
 
             # Check for performance concerns
             performance = (
-                db.query(Performance)
-                .filter(Performance.employee_id == employee.id)
-                .order_by(desc(Performance.review_date))
+                db.query(PerformanceData)
+                .filter(PerformanceData.employee_id == employee.id)
+                .order_by(desc(PerformanceData.id))
                 .first()
             )
             performance = performance.scalar() if performance else None
@@ -271,9 +270,7 @@ class AnalyticsService:
 
         # Get vibemeter responses for the day
         day_responses = (
-            db.query(VibemeterResponse)
-            .filter(VibemeterResponse.response_date == report_date)
-            .all()
+            db.query(VibemeterData).filter(VibemeterData.date == report_date).all()
         )
 
         response_count = len(day_responses)
@@ -317,10 +314,10 @@ class AnalyticsService:
             )
 
             dept_responses = (
-                db.query(VibemeterResponse)
-                .join(Employee, Employee.id == VibemeterResponse.employee_id)
+                db.query(VibemeterData)
+                .join(Employee, Employee.id == VibemeterData.employee_id)
                 .filter(Employee.department == dept_name)
-                .filter(VibemeterResponse.response_date == report_date)
+                .filter(VibemeterData.date == report_date)
                 .all()
             )
 

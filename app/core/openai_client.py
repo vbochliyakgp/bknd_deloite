@@ -2,7 +2,6 @@
 from openai import AsyncOpenAI
 from typing import List, Dict, Any, Optional
 from app.config import settings
-from app.models.vibemeter import EmotionZone
 from app.models.message import MessageSender
 from sqlalchemy.orm import Session
 import json
@@ -112,7 +111,7 @@ class OpenAIClient:
             if response.choices[0].message.tool_calls:
                 tool_call = response.choices[0].message.tool_calls[0]
                 function_args = json.loads(tool_call.function.arguments)
-                
+
                 return {
                     "content": function_args["response_text"],
                     "escalation_recommended": function_args["escalation_recommended"],

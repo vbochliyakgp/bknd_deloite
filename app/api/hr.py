@@ -177,7 +177,7 @@ async def get_employee_messages(
 
     messages = (
         db.query(Message)
-        .filter(Message.session_id == session.id)
+        .filter(Message.session_id == session.session_id)
         .order_by(Message.id)
         .all()
     )
