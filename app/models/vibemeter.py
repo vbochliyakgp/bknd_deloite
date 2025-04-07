@@ -1,34 +1,32 @@
 # app/models/vibemeter.py
-from sqlalchemy import Column, String, Integer, ForeignKey, Enum, Text, Float, Boolean
+from sqlalchemy import Column, String, Integer, ForeignKey, CheckConstraint, Date
 from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
-from sqlalchemy.sql.sqltypes import TIMESTAMP, DATE
 from app.database import Base
-import enum
 
 
-class EmotionZone(str, enum.Enum):
-    FRUSTRATED = "Frustrated"
-    SAD = "Sad"
-    OKAY = "Okay"
-    HAPPY = "Happy"
-    EXCITED = "Excited"
+class VibemeterData(Base):
+    __tablename__ = "vibemeter_data"
 
-
-class VibemeterResponse(Base):
-    __tablename__ = "vibe_responses"  # Renamed from vibemeter_responses
-
-    id = Column(Integer, primary_key=True, index=True)
-    employee_id = Column(Integer, ForeignKey("employees.id"))
-    date = Column(DATE, default=func.current_date())  # Renamed from response_date
-    score = Column(Float)  # Added field
-    vibe_zone = Column(Enum(EmotionZone))  # Renamed from emotion_zone
-    feedback = Column(Text, nullable=True)  # Renamed from comment
-    sentiment = Column(Float, nullable=True)  # Added field
-    trigger_flag = Column(Boolean, nullable=True)  # Added field
-    created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    employee_id = Column(
+        String(10), ForeignKey("employees.id", ondelete="CASCADE"), nullable=False
+    )
+    date = Column(Date, nullable=False)
+    vibe_score = Column(Integer, nullable=False)
+    emotion_zone = Column(String(50), nullable=False)
 
     # Relationships
-    employee = relationship(
-        "Employee", back_populates="vibe_responses"
-    )  # Updated relationship name
+    employee = relationship("Employee", back_populates="vibemeter")
+
+    # Ensure vibe_score is within a reasonable range (e.g., 1-10)
+    __table_args__ = (
+        CheckConstraint(
+            "vibe_score >= 1 AND vibe_score <= 10", name="check_vibe_score_range"
+        ),
+    )
+
+    def update(self, **kwargs):
+        """Update vibemeter attributes."""
+        for key, value in kwargs.items():
+            if hasattr(self, key):
+                setattr(self, key, value)
