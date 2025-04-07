@@ -10,7 +10,8 @@ from sqlalchemy import text
 from pydantic import TypeAdapter
 
 from app.dependencies import get_db, get_current_active_hr
-from app.models.employee import Employee
+from app.core.security import get_password_hash
+from app.models.employee import Employee, UserType, WellnessCheckStatus
 from app.models.vibemeter import VibemeterData, EmotionZone
 from app.models.chat_session import ChatSession
 from app.models.message import Message
@@ -234,6 +235,7 @@ async def get_employee_analytics(
     return analytics
 
 
+# TO FIX
 @router.get("/alerts", response_model=List[EmployeeAlert])
 async def get_employee_alerts(
     db: Session = Depends(get_db),
@@ -275,6 +277,7 @@ async def send_alert_email(
     return {"status": "success", "message": "Email sent successfully"}
 
 
+# TO FIX
 @router.get("/reports/daily", response_model=DailyReport)
 async def get_daily_report(
     report_date: Optional[date] = None,
@@ -291,58 +294,79 @@ async def get_daily_report(
     return report
 
 
+# TO FIX
 @router.post("/upload", response_model=UploadResponse)
 async def upload_data(
-    file: UploadFile = File(...),
-    dataset_type: DatasetType = Form(...),
+    files: List[UploadFile] = File(...),
+    dataset_types: List[str] = Form(...),
     db: Session = Depends(get_db),
     current_user: Employee = Depends(get_current_active_hr),
 ):
     """
-    Upload data file (CSV)
+    Upload multiple data files (CSV), one for each dataset type
     """
-    if file.content_type != "text/csv":
+    if len(files) != len(dataset_types):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Only CSV files are supported",
+            detail="Number of files and dataset types must match",
         )
 
-    contents = await file.read()
+    processed_data = {}
 
-    try:
-        # Parse CSV data
-        df = pd.read_csv(io.StringIO(contents.decode("utf-8")))
-        rows_processed = 0
+    for file, dataset_type_str in zip(files, dataset_types):
+        if file.content_type != "text/csv":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"File {file.filename} is not a CSV file",
+            )
 
-        if dataset_type == DatasetType.LEAVE:
-            rows_processed = await process_leave_data(db, df)
-        elif dataset_type == DatasetType.ACTIVITY:
-            rows_processed = await process_activity_data(db, df)
-        elif dataset_type == DatasetType.REWARDS:
-            rows_processed = await process_rewards_data(db, df)
-        elif dataset_type == DatasetType.PERFORMANCE:
-            rows_processed = await process_performance_data(db, df)
-        elif dataset_type == DatasetType.VIBEMETER:
-            rows_processed = await process_vibemeter_data(db, df)
-        elif dataset_type == DatasetType.ONBOARDING:
-            rows_processed = await process_onboarding_data(db, df)
+        try:
+            # Validate and convert dataset type
+            try:
+                dataset_type = DatasetType(dataset_type_str)
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid dataset type: {dataset_type_str}",
+                )
 
-        return UploadResponse(
-            filename=str(file.filename),
-            dataset_type=dataset_type,
-            rows_processed=rows_processed,
-            success=True,
-            message=f"Successfully processed {rows_processed} rows",
-        )
+            contents = await file.read()
 
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error processing file: {str(e)}",
-        )
+            # Parse CSV data
+            df = pd.read_csv(io.StringIO(contents.decode("utf-8")))
+
+            if dataset_type == DatasetType.LEAVE:
+                processed_data[DatasetType.LEAVE] = await process_leave_data(db, df)
+            elif dataset_type == DatasetType.ACTIVITY:
+                processed_data[DatasetType.ACTIVITY] = await process_activity_data(
+                    db, df
+                )
+            elif dataset_type == DatasetType.REWARDS:
+                processed_data[DatasetType.REWARDS] = await process_rewards_data(db, df)
+            elif dataset_type == DatasetType.PERFORMANCE:
+                processed_data[DatasetType.PERFORMANCE] = (
+                    await process_performance_data(db, df)
+                )
+            elif dataset_type == DatasetType.VIBEMETER:
+                processed_data[DatasetType.VIBEMETER] = await process_vibemeter_data(
+                    db, df
+                )
+            elif dataset_type == DatasetType.ONBOARDING:
+                processed_data[DatasetType.ONBOARDING] = await process_onboarding_data(
+                    db, df
+                )
+
+        except Exception as e:
+
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error processing file {file.filename}: {str(e)}",
+            )
+
+    return results
 
 
-async def process_leave_data(db: Session, df: pd.DataFrame) -> int:
+async def process_leave_data(db: Session, df: pd.DataFrame) -> pd.DataFrame:
     """
     Process leave data from CSV
     """
@@ -354,7 +378,26 @@ async def process_leave_data(db: Session, df: pd.DataFrame) -> int:
             .first()
         )
         if not employee:
-            continue
+            # insert new employee with dummy data
+            employee = Employee(
+                employee_id=row["employee_id"],
+                name="Jake Doe",  # Placeholder, should be replaced with actual name
+                email="jakedoe@example.com",
+                hashed_password=get_password_hash("dummyhashedpassword"),
+                phone="1234567890",
+                department="HR",
+                position="HR Manager",
+                user_type=UserType.employee,
+                profile_image=None,
+                wellness_check_status=WellnessCheckStatus.not_recieved,
+                last_vibe="neutral",
+                immediate_attention=False,
+            )
+
+            db.add(employee)
+            db.commit()
+            db.refresh(employee)
+            # Refresh the employee object to get the new ID
 
         leave = Leave(
             employee_id=employee.id,
@@ -368,7 +411,7 @@ async def process_leave_data(db: Session, df: pd.DataFrame) -> int:
         db.add(leave)
 
     db.commit()
-    return len(df)
+    return df
 
 
 async def process_activity_data(db: Session, df: pd.DataFrame) -> int:
@@ -383,7 +426,25 @@ async def process_activity_data(db: Session, df: pd.DataFrame) -> int:
             .first()
         )
         if not employee:
-            continue
+            employee = Employee(
+                employee_id=row["employee_id"],
+                name="Jake Doe",  # Placeholder, should be replaced with actual name
+                email="jakedoe@example.com",
+                hashed_password=get_password_hash("dummyhashedpassword"),
+                phone="1234567890",
+                department="HR",
+                position="HR Manager",
+                user_type=UserType.employee,
+                profile_image=None,
+                wellness_check_status=WellnessCheckStatus.not_recieved,
+                last_vibe="neutral",
+                immediate_attention=False,
+            )
+
+            db.add(employee)
+            db.commit()
+            db.refresh(employee)
+            # Refresh the employee object to get the new ID
 
         activity = Activity(
             employee_id=employee.id,
@@ -412,7 +473,25 @@ async def process_rewards_data(db: Session, df: pd.DataFrame) -> int:
             .first()
         )
         if not employee:
-            continue
+            employee = Employee(
+                employee_id=row["employee_id"],
+                name="Jake Doe",  # Placeholder, should be replaced with actual name
+                email="jakedoe@example.com",
+                hashed_password=get_password_hash("dummyhashedpassword"),
+                phone="1234567890",
+                department="HR",
+                position="HR Manager",
+                user_type=UserType.employee,
+                profile_image=None,
+                wellness_check_status=WellnessCheckStatus.not_recieved,
+                last_vibe="neutral",
+                immediate_attention=False,
+            )
+
+            db.add(employee)
+            db.commit()
+            db.refresh(employee)
+            # Refresh the employee object to get the new ID
 
         reward = Reward(
             employee_id=employee.id,
@@ -449,7 +528,25 @@ async def process_performance_data(db: Session, df: pd.DataFrame) -> int:
             .first()
         )
         if not employee:
-            continue
+            employee = Employee(
+                employee_id=row["employee_id"],
+                name="Jake Doe",  # Placeholder, should be replaced with actual name
+                email="jakedoe@example.com",
+                hashed_password=get_password_hash("dummyhashedpassword"),
+                phone="1234567890",
+                department="HR",
+                position="HR Manager",
+                user_type=UserType.employee,
+                profile_image=None,
+                wellness_check_status=WellnessCheckStatus.not_recieved,
+                last_vibe="neutral",
+                immediate_attention=False,
+            )
+
+            db.add(employee)
+            db.commit()
+            db.refresh(employee)
+            # Refresh the employee object to get the new ID
 
         performance = Performance(
             employee_id=employee.id,
@@ -489,7 +586,25 @@ async def process_vibemeter_data(db: Session, df: pd.DataFrame) -> int:
             .first()
         )
         if not employee:
-            continue
+            employee = Employee(
+                employee_id=row["employee_id"],
+                name="Jake Doe",  # Placeholder, should be replaced with actual name
+                email="jakedoe@example.com",
+                hashed_password=get_password_hash("dummyhashedpassword"),
+                phone="1234567890",
+                department="HR",
+                position="HR Manager",
+                user_type=UserType.employee,
+                profile_image=None,
+                wellness_check_status=WellnessCheckStatus.not_recieved,
+                last_vibe="neutral",
+                immediate_attention=False,
+            )
+
+            db.add(employee)
+            db.commit()
+            db.refresh(employee)
+            # Refresh the employee object to get the new ID
 
         # Convert string emotion to EmotionZone enum
         emotion = row["emotion_zone"]
@@ -514,9 +629,7 @@ async def process_onboarding_data(db: Session, df: pd.DataFrame) -> int:
     Process onboarding data from CSV - this would typically create new employees
     """
     # Implement data import logic for new employees (onboarding)
-    from app.core.security import get_password_hash
 
-    rows_processed = 0
     for _, row in df.iterrows():
         # Check if employee already exists
         existing = (
@@ -525,7 +638,25 @@ async def process_onboarding_data(db: Session, df: pd.DataFrame) -> int:
             .first()
         )
         if existing:
-            continue
+            employee = Employee(
+                employee_id=row["employee_id"],
+                name="Jake Doe",  # Placeholder, should be replaced with actual name
+                email="jakedoe@example.com",
+                hashed_password=get_password_hash("dummyhashedpassword"),
+                phone="1234567890",
+                department="HR",
+                position="HR Manager",
+                user_type=UserType.employee,
+                profile_image=None,
+                wellness_check_status=WellnessCheckStatus.not_recieved,
+                last_vibe="neutral",
+                immediate_attention=False,
+            )
+
+            db.add(employee)
+            db.commit()
+            db.refresh(employee)
+            # Refresh the employee object to get the new ID
 
         # Create new employee
         employee = Employee(
