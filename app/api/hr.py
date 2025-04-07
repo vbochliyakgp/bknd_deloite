@@ -11,13 +11,13 @@ from pydantic import TypeAdapter
 
 from app.dependencies import get_db, get_current_active_hr
 from app.models.employee import Employee
-from app.models.vibemeter import VibemeterResponse, EmotionZone
+from app.models.vibemeter import VibemeterData, EmotionZone
 from app.models.chat_session import ChatSession
 from app.models.message import Message
 from app.models.leave import Leave, LeaveStatus, LeaveType
 from app.models.activity import Activity
 from app.models.performance import Performance
-from app.schemas.chat import MessageResponse
+from app.schemas.chat import MessageResponse, MessageBaseNew
 from app.models.rewards import Reward
 from app.schemas.employee import EmployeeResponse, EmployeeWithAnalytics
 from app.schemas.analytics import (
@@ -27,7 +27,7 @@ from app.schemas.analytics import (
     SendEmailAlert,
 )
 from app.schemas.upload import DatasetType, UploadResponse
-from app.schemas.chat import ChatSessionWithMessages
+from app.schemas.chat import ChatSessionWithMessages, ChatSessionBaseNew
 from app.services.analytics import AnalyticsService
 from app.services.email import EmailService
 
@@ -36,8 +36,6 @@ router = APIRouter()
 
 @router.get("/employees", response_model=List[EmployeeWithAnalytics])
 async def get_all_employees(
-    department: Optional[str] = None,
-    active_only: bool = True,
     db: Session = Depends(get_db),
     current_user: Employee = Depends(get_current_active_hr),
 ):
@@ -46,21 +44,15 @@ async def get_all_employees(
     """
     query = db.query(Employee)
 
-    if active_only:
-        query = query.filter(Employee.is_active == True)
-
-    if department:
-        query = query.filter(Employee.department == department)
-
     employees = query.all()
     result = []
 
     for employee in employees:
         # Get latest vibemeter response
         latest_vibe = (
-            db.query(VibemeterResponse)
-            .filter(VibemeterResponse.employee_id == employee.id)
-            .order_by(VibemeterResponse.response_date.desc())
+            db.query(VibemeterData)
+            .filter(VibemeterData.employee_id == employee.id)
+            .order_by(VibemeterData.response_date.desc())
             .first()
         )
 
@@ -69,7 +61,7 @@ async def get_all_employees(
         leave_taken = (
             db.execute(
                 text(
-                    "SELECT SUM((end_date - start_date) + 1) FROM leaves WHERE employee_id = :employee_id AND EXTRACT(YEAR FROM start_date) = EXTRACT(YEAR FROM CURRENT_DATE)"
+                    "SELECT SUM(leave_days) FROM leaves WHERE employee_id = :employee_id AND EXTRACT(YEAR FROM start_date) = EXTRACT(YEAR FROM CURRENT_DATE)"
                 ),
                 {"employee_id": employee.id},
             ).scalar()
@@ -81,7 +73,7 @@ async def get_all_employees(
         activity_data = (
             db.execute(
                 text(
-                    "SELECT AVG(hours_worked) FROM activities WHERE employee_id = :employee_id AND date >= CURRENT_DATE - INTERVAL '30 days'"
+                    "SELECT AVG(hours_worked) FROM activities WHERE employee_id = :employee_id ORDER BY date DESC LIMIT 3"
                 ),
                 {"employee_id": employee.id},
             ).scalar()
@@ -91,7 +83,7 @@ async def get_all_employees(
         # Get performance data
         performance = db.execute(
             text(
-                "SELECT rating FROM performances WHERE employee_id = :employee_id ORDER BY review_date DESC LIMIT 1"
+                "SELECT performance_rating FROM performances WHERE employee_id = :employee_id ORDER BY review_date DESC LIMIT 1"
             ),
             {"employee_id": employee.id},
         ).scalar()
@@ -120,32 +112,10 @@ async def get_all_employees(
 
 
 @router.get(
-    "/employees/{employee_id}/analytics", response_model=EmployeeSessionAnalytics
-)
-async def get_employee_analytics(
-    employee_id: int,
-    db: Session = Depends(get_db),
-    current_user: Employee = Depends(get_current_active_hr),
-):
-    """
-    Get detailed analytics for a specific employee
-    """
-    employee = db.query(Employee).filter(Employee.id == employee_id).first()
-    if not employee:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found"
-        )
-
-    analytics = AnalyticsService.get_employee_analytics(db, employee_id)
-    return analytics
-
-
-@router.get(
-    "/employees/{employee_id}/sessions", response_model=List[ChatSessionWithMessages]
+    "/employees/{employee_id}/sessions", response_model=List[ChatSessionBaseNew]
 )
 async def get_employee_sessions(
     employee_id: int,
-    limit: int = 10,
     db: Session = Depends(get_db),
     current_user: Employee = Depends(get_current_active_hr),
 ):
@@ -162,25 +132,91 @@ async def get_employee_sessions(
         db.query(ChatSession)
         .filter(ChatSession.employee_id == employee_id)
         .order_by(ChatSession.start_time.desc())
-        .limit(limit)
         .all()
     )
 
     result = []
     for session in sessions:
-        messages = (
-            db.query(Message)
-            .filter(Message.chat_session_id == session.id)
-            .order_by(Message.timestamp)
-            .all()
-        )
-        message_adapter = TypeAdapter(List[MessageResponse])
-        message_responses = message_adapter.validate_python(messages)
         result.append(
-            ChatSessionWithMessages(**session.__dict__, messages=message_responses)
+            ChatSessionBaseNew(
+                employee_id=session.employee_id,
+                session_id=session.id,
+                start_time=session.start_time,
+                end_time=session.end_time,
+            )
         )
 
     return result
+
+
+@router.get(
+    "/employees/{employee_id}/messages/{session_id}",
+    response_model=List[MessageBaseNew],
+)
+async def get_employee_messages(
+    employee_id: int,
+    session_id: int,
+    db: Session = Depends(get_db),
+    current_user: Employee = Depends(get_current_active_hr),
+):
+    """
+    Get messages for a specific chat session of an employee
+    """
+    employee = db.query(Employee).filter(Employee.id == employee_id).first()
+    if not employee:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found"
+        )
+
+    session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Session not found"
+        )
+
+    messages = (
+        db.query(Message)
+        .filter(Message.session_id == session.id)
+        .order_by(Message.id)
+        .all()
+    )
+
+    result = []
+    for i, message in enumerate(messages):
+        result.append(
+            MessageBaseNew(
+                session_id=message.session_id,
+                serial_number=i + 1,
+                question=message.question,
+                answer=message.answer,
+            )
+        )
+
+    return result
+
+
+@router.get(
+    "/employees/{employee_id}/analytics/{session_id}",
+    response_model=EmployeeSessionAnalytics,
+)
+async def get_employee_analytics(
+    employee_id: int,
+    session_id: int,
+    db: Session = Depends(get_db),
+    current_user: Employee = Depends(get_current_active_hr),
+):
+    """
+    Get detailed analytics for a specific employee
+    """
+    employee = db.query(Employee).filter(Employee.id == employee_id).first()
+    if not employee:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found"
+        )
+
+    # TO DO: Implement detailed analytics logic
+    analytics = AnalyticsService.get_employee_analytics(db, employee_id, session_id)
+    return analytics
 
 
 @router.get("/alerts", response_model=List[EmployeeAlert])

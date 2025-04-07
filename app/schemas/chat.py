@@ -1,18 +1,26 @@
-
 # app/schemas/chat.py
-from typing import Optional, List,Dict, Any
+from typing import Optional, List, Dict, Any
 from pydantic import BaseModel
 from datetime import datetime
 from app.models.chat_session import SessionStatus
 from app.models.message import MessageSender
 
 
+class MessageBaseNew(BaseModel):
+    session_id: int
+    serial_number: int
+    question: str
+    answer: Optional[str] = None
+
+
 class MessageBase(BaseModel):
     sender: MessageSender
     content: str
 
+
 class MessageCreate(MessageBase):
     chat_session_id: int
+
 
 class MessageInDBBase(MessageBase):
     id: int
@@ -22,8 +30,17 @@ class MessageInDBBase(MessageBase):
     class Config:
         orm_mode = True
 
+
 class MessageResponse(MessageInDBBase):
     pass
+
+
+class ChatSessionBaseNew(BaseModel):
+    employee_id: int
+    session_id: int
+    start_time: datetime
+    end_time: Optional[datetime] = None
+
 
 class ChatSessionBase(BaseModel):
     employee_id: int
@@ -32,8 +49,10 @@ class ChatSessionBase(BaseModel):
     escalated_to_hr: bool = False
     escalation_reason: Optional[str] = None
 
+
 class ChatSessionCreate(ChatSessionBase):
     pass
+
 
 class ChatSessionUpdate(BaseModel):
     session_status: Optional[SessionStatus] = None
@@ -41,6 +60,7 @@ class ChatSessionUpdate(BaseModel):
     escalated_to_hr: Optional[bool] = None
     escalation_reason: Optional[str] = None
     end_time: Optional[datetime] = None
+
 
 class ChatSessionInDBBase(ChatSessionBase):
     id: int
@@ -52,11 +72,14 @@ class ChatSessionInDBBase(ChatSessionBase):
     class Config:
         orm_mode = True
 
+
 class ChatSessionResponse(ChatSessionInDBBase):
     pass
 
+
 class ChatSessionWithMessages(ChatSessionResponse):
     messages: List[MessageResponse] = []
+
 
 class ChatNextMessageRequest(BaseModel):
     chat_session_id: int
@@ -69,6 +92,7 @@ class Message(BaseModel):
     lipsync: Optional[Dict[str, Any]] = None
     facialExpression: str
     animation: str
+
 
 class ChatResponse(BaseModel):
     messages: List[Message]

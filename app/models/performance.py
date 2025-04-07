@@ -12,7 +12,7 @@ class PerformanceData(Base):
         String(10), ForeignKey("employees.id", ondelete="CASCADE"), nullable=False
     )
     review_period = Column(Date, nullable=False)
-    performance_rating = Column(String(50), nullable=False)
+    performance_rating = Column(Integer, nullable=False)
     manager_feedback = Column(Text)
     promotion_consideration = Column(Boolean, nullable=False, default=False)
 
