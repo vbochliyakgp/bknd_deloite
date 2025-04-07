@@ -1,43 +1,31 @@
 # app/models/leave.py
-from sqlalchemy import Column, String, Integer, ForeignKey, Enum, Date, Text
+from sqlalchemy import Column, String, Integer, ForeignKey, Date, CheckConstraint
 from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
-from sqlalchemy.sql.sqltypes import TIMESTAMP
 from app.database import Base
-import enum
-
-
-class LeaveType(str, enum.Enum):
-    ANNUAL = "annual"
-    SICK = "sick"
-    PERSONAL = "personal"
-    MATERNITY = "maternity"
-    PATERNITY = "paternity"
-    OTHER = "other"
-
-
-class LeaveStatus(str, enum.Enum):
-    PENDING = "pending"
-    APPROVED = "approved"
-    REJECTED = "rejected"
-    CANCELLED = "cancelled"
 
 
 class Leave(Base):
-    __tablename__ = "leaves"
+    __tablename__ = "leaves_data"
 
-    id = Column(Integer, primary_key=True, index=True)
-    employee_id = Column(Integer, ForeignKey("employees.id"))
-    start_date = Column(Date)
-    end_date = Column(Date)
-    leave_type = Column(Enum(LeaveType))
-    status = Column(Enum(LeaveStatus), default=LeaveStatus.PENDING)
-    days_count = Column(Integer)  # Added field
-    reason = Column(Text, nullable=True)
-    created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
-    updated_at = Column(
-        TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now()
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    employee_id = Column(
+        String(10), ForeignKey("employees.id", ondelete="CASCADE"), nullable=False
     )
+    leave_type = Column(String(50), nullable=False)
+    start_date = Column(Date, nullable=False)
+    end_date = Column(Date, nullable=False)
+    leave_days = Column(Integer, nullable=False)
 
     # Relationships
-    employee = relationship("Employee", back_populates="leave_records")
+    employee = relationship("Employee", back_populates="leaves")
+
+    # Ensure end_date is not before start_date
+    __table_args__ = (
+        CheckConstraint("end_date >= start_date", name="check_dates_valid"),
+    )
+
+    def update(self, **kwargs):
+        """Update leave attributes."""
+        for key, value in kwargs.items():
+            if hasattr(self, key):
+                setattr(self, key, value)

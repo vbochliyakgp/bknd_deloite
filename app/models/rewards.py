@@ -1,20 +1,25 @@
 # app/models/rewards.py
-from sqlalchemy import Column, String, Integer, ForeignKey, Text, Date
+from sqlalchemy import Column, String, Integer, ForeignKey, Date
 from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
-from sqlalchemy.sql.sqltypes import TIMESTAMP
 from app.database import Base
 
 
 class Reward(Base):
-    __tablename__ = "rewards_data"  # Renamed from rewards
+    __tablename__ = "rewards_data"
 
-    id = Column(Integer, primary_key=True, index=True)
-    employee_id = Column(Integer, ForeignKey("employees.id"))
-    reward_type = Column(String)  # e.g., "Spot Bonus", "Employee of the Month"
-    reward_date = Column(Date)
-    days_count = Column(Integer, nullable=True)  # Added field
-    created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    employee_id = Column(
+        String(10), ForeignKey("employees.id", ondelete="CASCADE"), nullable=False
+    )
+    reward_type = Column(String(50), nullable=False)
+    reward_date = Column(Date, nullable=False)
+    points = Column(Integer, nullable=False)
 
     # Relationships
-    employee = relationship("Employee", back_populates="reward_records")
+    employee = relationship("Employee", back_populates="rewards")
+
+    def update(self, **kwargs):
+        """Update reward attributes."""
+        for key, value in kwargs.items():
+            if hasattr(self, key):
+                setattr(self, key, value)

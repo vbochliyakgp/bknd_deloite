@@ -1,45 +1,80 @@
-# app/models/employee.py
-from sqlalchemy import Column, String, Integer, ForeignKey, Boolean, Text, Date
-from sqlalchemy.orm import relationship
+from sqlalchemy import (
+    Column,
+    String,
+    Integer,
+    Boolean,
+    Text,
+    Date,
+    ForeignKey,
+    DateTime,
+    Enum,
+    CheckConstraint,
+)
+from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.sql import func
-from sqlalchemy.sql.sqltypes import TIMESTAMP
-from app.database import Base
+from sqlalchemy.orm import relationship
+import enum
+
+Base = declarative_base()
+
+
+class UserType(enum.Enum):
+    admin = "admin"
+    hr = "hr"
+    employee = "employee"
+
+
+class WellnessCheckStatus(enum.Enum):
+    not_recieved = "not_recieved"
+    not_started = "not_started"
+    completed = "completed"
 
 
 class Employee(Base):
     __tablename__ = "employees"
 
-    id = Column(Integer, primary_key=True, index=True)
-    employee_id = Column(String, unique=True, index=True)  # Company ID (e.g., DEL123)
-    name = Column(String)
-    email = Column(String, unique=True, index=True)
-    phone = Column(String)  # Added field
-    department = Column(String)
-    position = Column(String)
-    manager_id = Column(Integer, ForeignKey("employees.id"), nullable=True)
-    join_date = Column(Date)  # Added field
-    profile_image = Column(String, nullable=True)  # Added field
-    status = Column(String)  # Added field
-    last_vibe = Column(String, nullable=True)  # Added field
-    is_active = Column(Boolean, default=True)
-    created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
-    updated_at = Column(
-        TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now()
+    id = Column(String(10), primary_key=True)
+    name = Column(String(100), nullable=False)
+    email = Column(String(100), nullable=False)
+    hashed_password = Column(String(255), nullable=False)
+    phone = Column(String(10), nullable=False)
+    department = Column(String(50))
+    position = Column(String(100))
+    user_type = Column(Enum(UserType), nullable=False)
+    profile_image = Column(String(255))
+    wellness_check_status = Column(
+        Enum(WellnessCheckStatus),
+        nullable=False,
+        default=WellnessCheckStatus.not_recieved,
     )
+    last_vibe = Column(String(20), nullable=False)
+    immediate_attention = Column(Boolean, nullable=False)
 
     # Relationships
-    manager = relationship("Employee", remote_side=[id], backref="team_members")
-    vibe_responses = relationship(
-        "VibemeterResponse", back_populates="employee"
-    )  # Renamed from vibemeter_responses
-    leave_records = relationship("Leave", back_populates="employee")
-    activity_records = relationship("Activity", back_populates="employee")
-    performance_records = relationship("Performance", back_populates="employee")
-    reward_records = relationship("Reward", back_populates="employee")
-    chat_sessions = relationship("ChatSession", back_populates="employee")
+    chat_sessions = relationship(
+        "ChatSession", back_populates="employee", cascade="all, delete-orphan"
+    )
+    activity_data = relationship(
+        "ActivityData", back_populates="employee", cascade="all, delete-orphan"
+    )
+    leaves = relationship(
+        "LeaveData", back_populates="employee", cascade="all, delete-orphan"
+    )
+    onboarding = relationship(
+        "OnboardingData", back_populates="employee", cascade="all, delete-orphan"
+    )
+    rewards = relationship(
+        "RewardData", back_populates="employee", cascade="all, delete-orphan"
+    )
+    performance = relationship(
+        "PerformanceData", back_populates="employee", cascade="all, delete-orphan"
+    )
+    vibemeter = relationship(
+        "VibemeterData", back_populates="employee", cascade="all, delete-orphan"
+    )
 
     def update(self, **kwargs):
-        """Update user attributes."""
+        """Update employee attributes."""
         for key, value in kwargs.items():
             if hasattr(self, key):
                 setattr(self, key, value)
