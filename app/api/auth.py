@@ -17,7 +17,7 @@ async def login_user(user_login: EmployeeLogin, db: Session = Depends(get_db)):
     """
     Login for HR and Admin users
     """
-    user = db.query(Employee).filter(Employee.name == user_login.username).first()
+    user = db.query(Employee).filter(Employee.id == user_login.employee_id).first()
 
     if not user or not verify_password(user_login.password, str(user.hashed_password)):
         raise HTTPException(
@@ -26,11 +26,11 @@ async def login_user(user_login: EmployeeLogin, db: Session = Depends(get_db)):
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    if not bool(user.is_active):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Inactive user",
-        )
+    # if not bool(user.is_active):
+    #     raise HTTPException(
+    #         status_code=status.HTTP_400_BAD_REQUEST,
+    #         detail="Inactive user",
+    #     )
 
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
@@ -52,7 +52,7 @@ async def login_employee(employee_login: EmployeeLogin, db: Session = Depends(ge
     )
 
     if not employee or not verify_password(
-        employee_login.password, employee.hashed_password
+        employee_login.password, str(employee.hashed_password)
     ):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

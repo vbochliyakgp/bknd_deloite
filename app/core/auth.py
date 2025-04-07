@@ -10,6 +10,8 @@ from app.core.security import oauth2_scheme
 from app.models.employee import Employee
 from app.schemas.auth import TokenPayload
 from app.config import settings
+from app.models.employee import UserType
+
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login")
 
@@ -82,7 +84,7 @@ def get_current_active_admin(
     """
     Check if current user is admin
     """
-    if current_user.role.value != UserRole.ADMIN.value:
+    if current_user.role.value != UserType.admin.value:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions",
@@ -96,7 +98,7 @@ def get_current_active_hr(
     """
     Check if current user is HR
     """
-    if current_user.role.value != UserRole.HR.value:
+    if current_user.role.value != UserType.hr.value:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions",
