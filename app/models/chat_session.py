@@ -18,6 +18,7 @@ class ChatSession(Base):
     escalated = Column(Boolean, default=False)
     suggestions = Column(Text)
     risk_score = Column(Integer)
+    risk_factors = Column(Text)
 
     # Relationships
     employee = relationship("Employee", back_populates="chat_sessions")

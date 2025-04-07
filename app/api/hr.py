@@ -32,6 +32,19 @@ from app.schemas.chat import ChatSessionBaseNew
 from app.services.analytics import AnalyticsService
 from app.services.email import EmailService
 
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+from sqlalchemy import func
+from datetime import datetime, timedelta
+import json
+from typing import List, Dict, Any
+import openai
+
+from app.database import get_db
+from app.models.chat_session import ChatSession
+from app.models.employee import Employee
+
+
 router = APIRouter()
 
 
@@ -280,21 +293,144 @@ async def send_alert_email(
 # TO FIX
 @router.get("/reports/daily", response_model=DailyReport)
 async def get_daily_report(
-    report_date: Optional[date] = None,
     db: Session = Depends(get_db),
     current_user: Employee = Depends(get_current_active_hr),
 ):
     """
     Get the daily report
     """
-    if not report_date:
-        report_date = date.today()
+    # Get today's date
+    today = datetime.now().date()
 
-    report = AnalyticsService.generate_daily_report(db, report_date)
-    return report
+    # Query chat sessions that started today
+    today_sessions = (
+        db.query(
+            ChatSession.employee_id,
+            ChatSession.risk_score,
+            ChatSession.suggestions,
+            Employee.department,
+        )
+        .join(Employee, ChatSession.employee_id == Employee.id)
+        .filter(func.date(ChatSession.start_time) == today)
+        .filter(ChatSession.risk_score.isnot(None))  # Only sessions with risk scores
+        .all()
+    )
+
+    session_data = []
+    for session in today_sessions:
+        # Extract risk factors from suggestions field (assuming they're stored as JSON or delimited text)
+        risk_factors = extract_risk_factors(session.suggestions)
+
+        session_data.append(
+            {
+                "employee_id": session.employee_id,
+                "risk_score": session.risk_score,
+                "risk_factors": session.risk_factors,
+                "suggestions": session.suggestions,
+                "department": session.department,
+            }
+        )
+
+    # Format data as a table string for the prompt
+    table_data = format_as_table(session_data)
+
+    # Format data as a table string for the prompt
+    table_data = format_as_table(session_data)
+
+    # Read prompt template from file or use the provided one
+    with open("app/prompts/daily_report_prompt.txt", "r") as f:
+        prompt_template = f.read()
+
+    # Replace placeholder with actual table data
+    prompt = prompt_template.replace("[TABLE DATA WILL BE INSERTED HERE]", table_data)
+
+    try:
+        # Call OpenAI API
+        response = openai.ChatCompletion.create(
+            model="gpt-4",  # Use appropriate model
+            messages=[{"role": "system", "content": prompt}],
+            temperature=0.2,  # Lower temperature for more consistent output
+            max_tokens=4000,
+            response_format={"type": "json_object"},
+        )
+
+        # Parse JSON response
+        report_json = json.loads(response.choices[0].message.content)
+
+        # Convert to Pydantic model for validation
+        # This will raise a validation error if the structure doesn't match
+        report = DailyReport.model_validate_json(report_json)
+
+        return report
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error generating report: {str(e)}"
+        )
 
 
-# TO FIX
+def extract_risk_factors(suggestions_text: str) -> List[str]:
+    """
+    Extract risk factors from the suggestions text.
+    This function should be adapted based on how risk factors are actually stored.
+    """
+    if not suggestions_text:
+        return []
+
+    try:
+        # Try parsing as JSON
+        data = json.loads(suggestions_text)
+        if isinstance(data, dict) and "risk_factors" in data:
+            return data["risk_factors"]
+        return []
+    except json.JSONDecodeError:
+        # If not JSON, assume comma-separated list
+        return [factor.strip() for factor in suggestions_text.split(",")]
+
+
+def format_as_table(session_data: List[Dict]) -> str:
+    """
+    Format the session data as a table string for the prompt.
+    """
+    if not session_data:
+        return "No data available."
+
+    # Create header
+    table = "employee_id | risk_score | risk_factors | suggestions | department\n"
+    table += "-----------|------------|--------------|------------|------------\n"
+
+    # Add rows
+    for session in session_data:
+        risk_factors_str = (
+            ", ".join(session["risk_factors"]) if session["risk_factors"] else "None"
+        )
+        suggestions_str = session["suggestions"] if session["suggestions"] else "None"
+        department = session["department"] if session["department"] else "Unknown"
+
+        table += f"{session['employee_id']} | {session['risk_score']} | {risk_factors_str} | {suggestions_str} | {department}\n"
+
+    return table
+
+
+def validate_report_structure(report: Dict[str, Any]) -> None:
+    """
+    Validate that the report has the required structure.
+    """
+    required_keys = [
+        "report_date",
+        "report_title",
+        "executive_summary",
+        "key_metrics",
+        "key_insights",
+        "top_risk_factors",
+        "recommended_focus_areas",
+    ]
+
+    for key in required_keys:
+        if key not in report:
+            raise ValueError(f"Required key '{key}' missing from report")
+
+
 @router.post("/upload", response_model=UploadResponse)
 async def upload_data(
     files: List[UploadFile] = File(...),

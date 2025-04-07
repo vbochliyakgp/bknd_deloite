@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS chat_sessions (
     summary TEXT,
     escalated BOOLEAN DEFAULT FALSE,
     suggestions TEXT,
+    risk_factors TEXT,
     risk_score INT,
     FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
 );
