@@ -1,35 +1,33 @@
-# app/schemas/employee.py
-
 from typing import Optional
 from pydantic import BaseModel, EmailStr
 from datetime import datetime
 from enum import Enum
 
 
-class EmployeeRole(str, Enum):
-    ADMIN = "0"
-    HR = "1"
-    EMPLOYEE = "2"
+class UserType(str, Enum):
+    admin = "admin"
+    hr = "hr"
+    employee = "employee"
 
 
 class WellnessCheckStatus(str, Enum):
-    not_received = "0"
-    not_started = "1"
-    completed = "2"
+    not_recieved = "not_recieved"
+    not_started = "not_started"
+    completed = "completed"
 
 
 class EmployeeBase(BaseModel):
     id: str
     name: str
     email: EmailStr
-    phone: Optional[str] = None
-    role: EmployeeRole
-    department: str
-    position: str
+    phone: str
+    user_type: UserType
+    department: Optional[str] = None
+    position: Optional[str] = None
     profile_image: Optional[str] = None
     wellness_check_status: WellnessCheckStatus
-    last_vibe: Optional[str] = None
-    immediate_action: bool
+    last_vibe: str
+    immediate_attention: bool
 
 
 class EmployeeCreate(EmployeeBase):
@@ -41,13 +39,13 @@ class EmployeeUpdate(BaseModel):
     email: Optional[EmailStr] = None
     password: Optional[str] = None
     phone: Optional[str] = None
-    role: Optional[EmployeeRole] = None
+    user_type: Optional[UserType] = None
     department: Optional[str] = None
     position: Optional[str] = None
     profile_image: Optional[str] = None
     wellness_check_status: Optional[WellnessCheckStatus] = None
     last_vibe: Optional[str] = None
-    immediate_action: Optional[bool] = None
+    immediate_attention: Optional[bool] = None
 
 
 class EmployeeInDBBase(EmployeeBase):

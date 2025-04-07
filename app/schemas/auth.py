@@ -9,9 +9,6 @@ class Token(BaseModel):
 class TokenPayload(BaseModel):
     sub: Optional[int] = None
 
-class UserLogin(BaseModel):
-    username: str
-    password: str
 
 class EmployeeLogin(BaseModel):
     employee_id: str

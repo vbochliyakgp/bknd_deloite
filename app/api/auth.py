@@ -5,9 +5,8 @@ from sqlalchemy.orm import Session
 from datetime import timedelta
 
 from app.dependencies import get_db
-from app.models.user import User
 from app.models.employee import Employee
-from app.schemas.auth import Token, UserLogin, EmployeeLogin
+from app.schemas.auth import Token, EmployeeLogin
 from app.core.security import verify_password, create_access_token,get_password_hash
 from app.config import settings
 from app.core.auth import get_current_user
@@ -16,11 +15,11 @@ router = APIRouter()
 
 
 @router.post("/login/user", response_model=Token)
-async def login_user(user_login: UserLogin, db: Session = Depends(get_db)):
+async def login_user(user_login: EmployeeLogin, db: Session = Depends(get_db)):
     """
     Login for HR and Admin users
     """
-    user = db.query(User).filter(User.username == user_login.username).first()
+    user = db.query(Employee).filter(Employee.name == user_login.username).first()
 
     if not user or not verify_password(user_login.password, str(user.hashed_password)):
         raise HTTPException(

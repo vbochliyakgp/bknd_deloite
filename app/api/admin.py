@@ -1,17 +1,16 @@
 # app/api/admin.py
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import List
 
 from app.dependencies import get_db, get_current_active_admin
-from app.models.employee import Employee
+from app.models.employee import Employee, UserType
 from app.schemas.employee import EmployeeCreate, EmployeeResponse, EmployeeUpdate
 from app.core.security import get_password_hash
 
 router = APIRouter()
 
 
-# Employee management (Admin and HR)
 @router.get("/users", response_model=List[EmployeeResponse])
 async def get_all_users(
     db: Session = Depends(get_db),
@@ -20,7 +19,7 @@ async def get_all_users(
     """
     Get all system users (HR and Admin)
     """
-    users = db.query(Employee).filter(Employee.role.in_(["0", "1"])).all()
+    users = db.query(Employee).filter(Employee.user_type.in_([UserType.admin, UserType.hr])).all()
     return users
 
 
@@ -33,12 +32,7 @@ async def create_user(
     """
     Create a new system user (HR or Admin)
     """
-    existing_user = (
-        db.query(Employee)
-        .filter((Employee.email == user.email))
-        .first()
-    )
-
+    existing_user = db.query(Employee).filter(Employee.email == user.email).first()
     if existing_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -50,14 +44,14 @@ async def create_user(
         name=user.name,
         email=user.email,
         phone=user.phone,
-        role=user.role,
+        user_type=user.user_type,
         department=user.department,
         position=user.position,
         profile_image=user.profile_image,
         hashed_password=get_password_hash(user.password),
         wellness_check_status=user.wellness_check_status,
         last_vibe=user.last_vibe,
-        immediate_action=user.immediate_action,
+        immediate_attention=user.immediate_attention,
     )
 
     db.add(new_user)
@@ -69,7 +63,7 @@ async def create_user(
 
 @router.get("/users/{user_id}", response_model=EmployeeResponse)
 async def get_user(
-    user_id: int,
+    user_id: str,
     db: Session = Depends(get_db),
     current_user: Employee = Depends(get_current_active_admin),
 ):
@@ -87,7 +81,7 @@ async def get_user(
 
 @router.put("/users/{user_id}", response_model=EmployeeResponse)
 async def update_user(
-    user_id: int,
+    user_id: str,
     user_update: EmployeeUpdate,
     db: Session = Depends(get_db),
     current_user: Employee = Depends(get_current_active_admin),
@@ -101,17 +95,17 @@ async def update_user(
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
         )
 
-    if user_update.email is not None and user_update.email != user.email:
+    if user_update.email and user_update.email != user.email:
         if db.query(Employee).filter(Employee.email == user_update.email).first():
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, detail="Email already in use"
             )
 
-    for field, value in user_update.dict(exclude_unset=True).items():
-        if field == "password":
-            setattr(user, "hashed_password", get_password_hash(value))
-        else:
-            setattr(user, field, value)
+    update_data = user_update.dict(exclude_unset=True)
+    if "password" in update_data:
+        user.hashed_password = get_password_hash(update_data.pop("password"))
+
+    user.update(**update_data)
 
     db.commit()
     db.refresh(user)
@@ -121,7 +115,7 @@ async def update_user(
 
 @router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_user(
-    user_id: int,
+    user_id: str,
     db: Session = Depends(get_db),
     current_user: Employee = Depends(get_current_active_admin),
 ):
@@ -134,7 +128,7 @@ async def delete_user(
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
         )
 
-    if str(user.id) == str(current_user.id):
+    if user.id == current_user.id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Cannot delete your own account",
@@ -148,7 +142,7 @@ async def delete_user(
 
 @router.post("/users/{employee_id}/reset-password", response_model=EmployeeResponse)
 async def reset_employee_password(
-    employee_id: int,
+    employee_id: str,
     new_password: str,
     db: Session = Depends(get_db),
     current_user: Employee = Depends(get_current_active_admin),
