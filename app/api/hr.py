@@ -692,13 +692,13 @@ async def process_leave_data(db: Session, df: pd.DataFrame) -> pd.DataFrame:
     for _, row in df.iterrows():
         employee = (
             db.query(Employee)
-            .filter(Employee.employee_id == row["employee_id"])
+            .filter(Employee.employee_id == row["Employee_ID"])
             .first()
         )
         if not employee:
             # insert new employee with dummy data
             employee = Employee(
-                employee_id=str(row["employee_id"]),
+                employee_id=str(row["Employee_ID"]),
                 name="Jake Doe",  # Placeholder, should be replaced with actual name
                 email="jakedoe@example.com",
                 hashed_password=get_password_hash("dummyhashedpassword"),
@@ -717,15 +717,25 @@ async def process_leave_data(db: Session, df: pd.DataFrame) -> pd.DataFrame:
             db.refresh(employee)
             # Refresh the employee object to get the new ID
 
-        leave = Leave(
-            employee_id=str(employee.id),
-            leave_type=str(row["leave_type"]),
-            start_date=datetime.strptime(row["start_date"], "%Y-%m-%d").date(),
-            end_date=datetime.strptime(row["end_date"], "%Y-%m-%d").date(),
-            leave_days=int(row["leave_days"]),
-        )
+        # leave = Leave(
+        #     employee_id=str(employee.id),
+        #     leave_type=str(row["leave_type"]),
+        #     start_date=datetime.strptime(row["start_date"], "%Y-%m-%d").date(),
+        #     end_date=datetime.strptime(row["end_date"], "%Y-%m-%d").date(),
+        #     leave_days=int(row["leave_days"]),
+        # )
 
-        db.add(leave)
+        # db.add(leave)
+        db.execute(
+            text("INSERT INTO leaves_data (employee_id, leave_type, start_date, end_date, leave_days) VALUES (:employee_id, :leave_type, :start_date, :end_date, :leave_days)"),
+            {
+                "employee_id": str(employee.id),
+                "leave_type": str(row["Leave_Type"]),
+                "start_date": datetime.strptime(row["Leave_Start_Date"], "%Y-%m-%d").date(),
+                "end_date": datetime.strptime(row["Leave_End_Date"], "%Y-%m-%d").date(),
+                "leave_days": int(row["Leave_Days"]),
+            }
+        )
 
     db.commit()
     return df
@@ -739,12 +749,12 @@ async def process_activity_data(db: Session, df: pd.DataFrame) -> pd.DataFrame:
     for _, row in df.iterrows():
         employee = (
             db.query(Employee)
-            .filter(Employee.employee_id == row["employee_id"])
+            .filter(Employee.employee_id == row["Employee_ID"])
             .first()
         )
         if not employee:
             employee = Employee(
-                employee_id=str(row["employee_id"]),
+                employee_id=str(row["Employee_ID"]),
                 name="Jake Doe",  # Placeholder, should be replaced with actual name
                 email="jakedoe@example.com",
                 hashed_password=get_password_hash("dummyhashedpassword"),
@@ -763,16 +773,27 @@ async def process_activity_data(db: Session, df: pd.DataFrame) -> pd.DataFrame:
             db.refresh(employee)
             # Refresh the employee object to get the new ID
 
-        activity = Activity(
-            employee_id=str(employee.id),
-            date=datetime.strptime(row["date"], "%Y-%m-%d").date(),
-            hours_worked=float(row["hours_worked"]),
-            meetings_attended=int(row["meetings_attended"]),
-            emails_sent=int(row["emails_sent"]),
-            teams_messages_sent=int(row["teams_messages_sent"]),
-        )
+        # activity = Activity(
+        #     employee_id=str(employee.id),
+        #     date=datetime.strptime(row["date"], "%Y-%m-%d").date(),
+        #     hours_worked=float(row["hours_worked"]),
+        #     meetings_attended=int(row["meetings_attended"]),
+        #     emails_sent=int(row["emails_sent"]),
+        #     teams_messages_sent=int(row["teams_messages_sent"]),
+        # )
 
-        db.add(activity)
+        # db.add(activity)
+        db.execute(
+            text("INSERT INTO activity_data (employee_id, date, hours_worked, meetings_attended, emails_sent, teams_messages_sent) VALUES (:employee_id, :date, :hours_worked, :meetings_attended, :emails_sent, :teams_messages_sent)"),
+            {
+                "employee_id": str(employee.id),
+                "date": datetime.strptime(row["Date"], "%Y-%m-%d").date(),
+                "hours_worked": float(row["Work_Hours"]),
+                "meetings_attended": int(row["Meetings_Attended"]),
+                "emails_sent": int(row["Emails_Sent"]),
+                "teams_messages_sent": int(row["Teams_Messages_Sent"]),
+            }
+        )
 
     db.commit()
     return df
@@ -786,12 +807,12 @@ async def process_rewards_data(db: Session, df: pd.DataFrame) -> pd.DataFrame:
     for _, row in df.iterrows():
         employee = (
             db.query(Employee)
-            .filter(Employee.employee_id == row["employee_id"])
+            .filter(Employee.employee_id == row["Employee_ID"])
             .first()
         )
         if not employee:
             employee = Employee(
-                employee_id=str(row["employee_id"]),
+                employee_id=str(row["Employee_ID"]),
                 name="Jake Doe",  # Placeholder, should be replaced with actual name
                 email="jakedoe@example.com",
                 hashed_password=get_password_hash("dummyhashedpassword"),
@@ -810,14 +831,23 @@ async def process_rewards_data(db: Session, df: pd.DataFrame) -> pd.DataFrame:
             db.refresh(employee)
             # Refresh the employee object to get the new ID
 
-        reward = Reward(
-            employee_id=str(employee.id),
-            reward_type=str(row["Award_Type"]),
-            reward_date=datetime.strptime(row["Award_Date"], "%Y-%m-%d").date(),
-            points=int(row["Reward_Points"]),
-        )
+        # reward = Reward(
+        #     employee_id=str(employee.id),
+        #     reward_type=str(row["Award_Type"]),
+        #     reward_date=datetime.strptime(row["Award_Date"], "%Y-%m-%d").date(),
+        #     points=int(row["Reward_Points"]),
+        # )
 
-        db.add(reward)
+        # db.add(reward)
+        db.execute(
+            text("INSERT INTO rewards_data (employee_id, reward_type, reward_date, points) VALUES (:employee_id, :reward_type, :reward_date, :points)"),
+            {
+                "employee_id": str(employee.id),
+                "reward_type": str(row["Award_Type"]),
+                "reward_date": datetime.strptime(row["Award_Date"], "%Y-%m-%d").date(),
+                "points": int(row["Reward_Points"]),
+            }
+        )
 
     db.commit()
     return df
@@ -831,12 +861,12 @@ async def process_performance_data(db: Session, df: pd.DataFrame) -> pd.DataFram
     for _, row in df.iterrows():
         employee = (
             db.query(Employee)
-            .filter(Employee.employee_id == row["employee_id"])
+            .filter(Employee.employee_id == row["Employee_ID"])
             .first()
         )
         if not employee:
             employee = Employee(
-                employee_id=str(row["employee_id"]),
+                employee_id=str(row["Employee_ID"]),
                 name="Jake Doe",  # Placeholder, should be replaced with actual name
                 email="jakedoe@example.com",
                 hashed_password=get_password_hash("dummyhashedpassword"),
@@ -855,15 +885,25 @@ async def process_performance_data(db: Session, df: pd.DataFrame) -> pd.DataFram
             db.refresh(employee)
             # Refresh the employee object to get the new ID
 
-        performance = PerformanceData(
-            employee_id=str(employee.id),
-            review_period=str(row["Review_Period"]),
-            performance_rating=int(row["Performance_Rating"]),
-            manager_feedback=str(row["Manager_Feedback"]),
-            promotion_consideration=bool(row["Promotion_Consideration"]),
-        )
+        # performance = PerformanceData(
+        #     employee_id=str(employee.id),
+        #     review_period=str(row["Review_Period"]),
+        #     performance_rating=int(row["Performance_Rating"]),
+        #     manager_feedback=str(row["Manager_Feedback"]),
+        #     promotion_consideration=bool(row["Promotion_Consideration"]),
+        # )
 
-        db.add(performance)
+        # db.add(performance)
+        db.execute(
+            text("INSERT INTO performance_data (employee_id, review_period, performance_rating, manager_feedback, promotion_consideration) VALUES (:employee_id, :review_period, :performance_rating, :manager_feedback, :promotion_consideration)"),
+            {
+                "employee_id": str(employee.id),
+                "review_period": str(row["Review_Period"]),
+                "performance_rating": int(row["Performance_Rating"]),
+                "manager_feedback": str(row["Manager_Feedback"]),
+                "promotion_consideration": bool(row["Promotion_Consideration"]),
+            }
+        )
 
     db.commit()
     return df
@@ -877,12 +917,12 @@ async def process_vibemeter_data(db: Session, df: pd.DataFrame) -> pd.DataFrame:
     for _, row in df.iterrows():
         employee = (
             db.query(Employee)
-            .filter(Employee.employee_id == row["employee_id"])
+            .filter(Employee.employee_id == row["Employee_ID"])
             .first()
         )
         if not employee:
             employee = Employee(
-                employee_id=str(row["employee_id"]),
+                employee_id=str(row["Employee_ID"]),
                 name="Jake Doe",  # Placeholder, should be replaced with actual name
                 email="jakedoe@example.com",
                 hashed_password=get_password_hash("dummyhashedpassword"),
@@ -903,14 +943,23 @@ async def process_vibemeter_data(db: Session, df: pd.DataFrame) -> pd.DataFrame:
 
         # Convert string emotion to EmotionZone enum
 
-        vibemeter_response = VibemeterData(
-            employee_id=str(employee.id),
-            date=datetime.strptime(row["Response_Date"], "%Y-%m-%d").date(),
-            vibe_score=int(row["Vibe_Score"]),
-            emotion_zone=str(row["Emotion_Zone"]),
-        )
+        # vibemeter_response = VibemeterData(
+        #     employee_id=str(employee.id),
+        #     date=datetime.strptime(row["Response_Date"], "%Y-%m-%d").date(),
+        #     vibe_score=int(row["Vibe_Score"]),
+        #     emotion_zone=str(row["Emotion_Zone"]),
+        # )
 
-        db.add(vibemeter_response)
+        # db.add(vibemeter_response)
+        db.execute(
+            text("INSERT INTO vibemeter_data (employee_id, date, vibe_score, emotion_zone) VALUES (:employee_id, :date, :vibe_score, :emotion_zone)"),
+            {
+                "employee_id": str(employee.id),
+                "date": datetime.strptime(row["Response_Date"], "%Y-%m-%d").date(),
+                "vibe_score": int(row["Vibe_Score"]),
+                "emotion_zone": str(row["Emotion_Zone"]),
+            }
+        )
 
     db.commit()
     return df
@@ -926,12 +975,12 @@ async def process_onboarding_data(db: Session, df: pd.DataFrame) -> pd.DataFrame
         # Check if employee already exists
         existing = (
             db.query(Employee)
-            .filter(Employee.employee_id == row["employee_id"])
+            .filter(Employee.employee_id == row["Employee_ID"])
             .first()
         )
         if existing:
             employee = Employee(
-                employee_id=str(row["employee_id"]),
+                employee_id=str(row["Employee_ID"]),
                 name="Jake Doe",  # Placeholder, should be replaced with actual name
                 email="jakedoe@example.com",
                 hashed_password=get_password_hash("dummyhashedpassword"),
@@ -951,15 +1000,26 @@ async def process_onboarding_data(db: Session, df: pd.DataFrame) -> pd.DataFrame
             # Refresh the employee object to get the new ID
 
         # Create new employee
-        employee = Onboarding(
-            employee_id=str(row["employee_id"]),
-            onboarding_feedback=str(row["Onboarding_Feedback"]),
-            joining_date=datetime.strptime(row["Joining_Date"], "%Y-%m-%d").date(),
-            mentor_assigned=bool(row["Mentor_Assigned"]),
-            training_completed=bool(row["Training_Completed"]),
-        )
+        # employee = Onboarding(
+        #     employee_id=str(row["Employee_ID"]),
+        #     onboarding_feedback=str(row["Onboarding_Feedback"]),
+        #     joining_date=datetime.strptime(row["Joining_Date"], "%Y-%m-%d").date(),
+        #     mentor_assigned=bool(row["Mentor_Assigned"]),
+        #     training_completed=bool(row["Training_Completed"]),
+        # )
 
-        db.add(employee)
+        # db.add(employee)
+
+        db.execute(
+            text("INSERT INTO onboarding_data (employee_id, onboarding_feedback, joining_date, mentor_assigned, training_completed) VALUES (:employee_id, :onboarding_feedback, :joining_date, :mentor_assigned, :training_completed)"),
+            {
+                "employee_id": str(employee.id),
+                "onboarding_feedback": str(row["Onboarding_Feedback"]),
+                "joining_date": datetime.strptime(row["Joining_Date"], "%Y-%m-%d").date(),
+                "mentor_assigned": bool(row["Mentor_Assigned"]),
+                "training_completed": bool(row["Training_Completed"]),
+            }
+        )
 
     db.commit()
 
