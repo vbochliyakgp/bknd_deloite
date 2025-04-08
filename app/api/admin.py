@@ -5,14 +5,14 @@ from typing import List
 
 from app.dependencies import get_db, get_current_active_admin
 from app.models.employee import Employee, UserType
-from app.schemas.employee import EmployeeCreate, EmployeeResponse
+from app.schemas.employee import EmployeeCreate, EmployeeResponse, EmployeeWithAnalytics
 from app.core.security import get_password_hash
 from fastapi import Body
 
 router = APIRouter()
 
 
-@router.get("/users", response_model=List[EmployeeResponse])
+@router.get("/users", response_model=List[EmployeeWithAnalytics])
 async def get_all_users(
     db: Session = Depends(get_db),
     current_user: Employee = Depends(get_current_active_admin),
@@ -20,8 +20,88 @@ async def get_all_users(
     """
     Get all system users (HR and Admin)
     """
-    users = db.query(Employee).all()
-    return users
+    print("Fetching all employees from the database...")
+    query = db.query(Employee)
+
+    employees = query.all()
+    print(f"Total employees fetched: {len(employees)}")
+    result = []
+
+    for employee in employees:
+        print(f"Processing employee: {employee.id} - {employee.name}")
+
+        # Get latest vibemeter response
+        latest_vibe = (
+            db.query(VibemeterData)
+            .filter(VibemeterData.employee_id == employee.id)
+            .order_by(VibemeterData.date.desc())
+            .first()
+        )
+        print(f"Latest vibe for employee {employee.id}: {latest_vibe}")
+
+        # Get leave data
+        leave_balance = 30  # Default annual leave
+        leave_taken = (
+            db.execute(
+                text(
+                    "SELECT SUM(leave_days) FROM leaves_data WHERE employee_id = :employee_id AND EXTRACT(YEAR FROM start_date) = EXTRACT(YEAR FROM CURRENT_DATE)"
+                ),
+                {"employee_id": employee.id},
+            ).scalar()
+            or 0
+        )
+        print(f"Leave taken for employee {employee.id}: {leave_taken}")
+        leave_balance -= leave_taken
+        print(f"Leave balance for employee {employee.id}: {leave_balance}")
+
+        # Get activity data
+        activity_data = db.execute(
+            text(
+                "SELECT hours_worked FROM activity_data WHERE employee_id = :employee_id ORDER BY date DESC LIMIT 3"
+            ),
+            {"employee_id": employee.id},
+        ).all()
+        # calculate average hours worked
+        if activity_data:
+            activity_data = sum([row[0] for row in activity_data]) / len(activity_data)
+        else:
+            activity_data = 0
+        print(f"Average hours worked for employee {employee.id}: {activity_data}")
+
+        # Get performance data
+        performance = db.execute(
+            text(
+                "SELECT performance_rating FROM performance_data WHERE employee_id = :employee_id ORDER BY id DESC LIMIT 1"
+            ),
+            {"employee_id": employee.id},
+        ).scalar()
+        print(f"Latest performance rating for employee {employee.id}: {performance}")
+
+        # Get rewards count
+        rewards_count = (
+            db.execute(
+                text(
+                    "SELECT COUNT(*) FROM rewards_data WHERE employee_id = :employee_id"
+                ),
+                {"employee_id": employee.id},
+            ).scalar()
+            or 0
+        )
+        print(f"Rewards count for employee {employee.id}: {rewards_count}")
+
+        result.append(
+            EmployeeWithAnalytics(
+                **employee.__dict__,
+                recent_vibe=str(latest_vibe.emotion_zone) if latest_vibe else None,
+                leave_balance=leave_balance,
+                average_hours_worked=round(activity_data, 1),
+                latest_performance_rating=performance,
+                rewards_count=rewards_count,
+            )
+        )
+
+    print("Finished processing all employees.")
+    return result
 
 #test failed
 @router.post(
