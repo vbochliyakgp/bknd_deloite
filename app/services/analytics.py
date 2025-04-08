@@ -53,9 +53,6 @@ class AnalyticsService:
         avg_hours = sum(a.hours_worked.scalar() for a in activity_data) / (
             len(activity_data) or 1
         )
-        avg_after_hours = sum(a.after_hours_work.scalar() for a in activity_data) / (
-            len(activity_data) or 1
-        )
 
         # Get performance data
         latest_performance = (
@@ -79,7 +76,7 @@ class AnalyticsService:
             "position": employee.position,
             "vibe_history": [
                 {
-                    "date": v.response_date.strftime("%Y-%m-%d"),
+                    "date": v.date.strftime("%Y-%m-%d"),
                     "emotion": v.emotion_zone,
                 }
                 for v in vibe_history
@@ -92,31 +89,29 @@ class AnalyticsService:
                         "start_date": l.start_date.strftime("%Y-%m-%d"),
                         "end_date": l.end_date.strftime("%Y-%m-%d"),
                         "type": l.leave_type,
-                        "status": l.status,
                     }
                     for l in leave_data
                 ],
             },
             "activity_data": {
                 "average_hours": round(avg_hours, 2),
-                "average_after_hours": round(avg_after_hours, 2),
                 "details": [
                     {
                         "date": a.date.strftime("%Y-%m-%d"),
                         "hours": a.hours_worked,
-                        "after_hours": a.after_hours_work,
+                        "hours_worked": a.hours_worked,
                         "meetings": a.meetings_attended,
                     }
                     for a in activity_data
                 ],
             },
             "performance_data": {
-                "rating": latest_performance.rating if latest_performance else None,
+                "rating": latest_performance.performance_rating if latest_performance else None,
                 "review_period": (
                     latest_performance.review_period if latest_performance else None
                 ),
                 "promotion_eligible": (
-                    latest_performance.promotion_eligible
+                    latest_performance.promotion_consideration
                     if latest_performance
                     else None
                 ),
@@ -127,7 +122,6 @@ class AnalyticsService:
                     {
                         "type": r.reward_type,
                         "date": r.reward_date.strftime("%Y-%m-%d"),
-                        "description": r.description,
                     }
                     for r in rewards[:3]
                 ],
