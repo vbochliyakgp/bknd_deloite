@@ -555,49 +555,49 @@ async def upload_data(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"File {file.filename} is not a CSV file",
             )
-
-        try:
+        print("procesing uploads ", dataset_type_str)
+        # try:
             # Validate and convert dataset type
-            try:
-                dataset_type = DatasetType(dataset_type_str)
-            except ValueError:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Invalid dataset type: {dataset_type_str}",
-                )
-
-            contents = await file.read()
-
-            # Parse CSV data
-            df = pd.read_csv(io.StringIO(contents.decode("utf-8")))
-
-            if dataset_type == DatasetType.LEAVE:
-                processed_data[DatasetType.LEAVE] = await process_leave_data(db, df)
-            elif dataset_type == DatasetType.ACTIVITY:
-                processed_data[DatasetType.ACTIVITY] = await process_activity_data(
-                    db, df
-                )
-            elif dataset_type == DatasetType.REWARDS:
-                processed_data[DatasetType.REWARDS] = await process_rewards_data(db, df)
-            elif dataset_type == DatasetType.PERFORMANCE:
-                processed_data[DatasetType.PERFORMANCE] = (
-                    await process_performance_data(db, df)
-                )
-            elif dataset_type == DatasetType.VIBEMETER:
-                processed_data[DatasetType.VIBEMETER] = await process_vibemeter_data(
-                    db, df
-                )
-            elif dataset_type == DatasetType.ONBOARDING:
-                processed_data[DatasetType.ONBOARDING] = await process_onboarding_data(
-                    db, df
-                )
-
-        except Exception as e:
-
+        try:
+            dataset_type = DatasetType(dataset_type_str)
+        except ValueError:
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Error processing file {file.filename}: {str(e)}",
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid dataset type: {dataset_type_str}",
             )
+
+        contents = await file.read()
+
+        # Parse CSV data
+        df = pd.read_csv(io.StringIO(contents.decode("utf-8")))
+
+        if dataset_type == DatasetType.LEAVE:
+            processed_data[DatasetType.LEAVE] = await process_leave_data(db, df)
+        elif dataset_type == DatasetType.ACTIVITY:
+            processed_data[DatasetType.ACTIVITY] = await process_activity_data(
+                db, df
+            )
+        elif dataset_type == DatasetType.REWARDS:
+            processed_data[DatasetType.REWARDS] = await process_rewards_data(db, df)
+        elif dataset_type == DatasetType.PERFORMANCE:
+            processed_data[DatasetType.PERFORMANCE] = (
+                await process_performance_data(db, df)
+            )
+        elif dataset_type == DatasetType.VIBEMETER:
+            processed_data[DatasetType.VIBEMETER] = await process_vibemeter_data(
+                db, df
+            )
+        elif dataset_type == DatasetType.ONBOARDING:
+            processed_data[DatasetType.ONBOARDING] = await process_onboarding_data(
+                db, df
+            )
+
+        # except Exception as e:
+
+            # raise HTTPException(
+            #     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            #     detail=f"Error processing file {file.filename}: {str(e)}",
+            # )
 
     # Analyze vibemeter data
     vibemeter_analysis = await analyze_vibemeter(processed_data)
@@ -608,7 +608,7 @@ async def upload_data(
         for employee in vibemeter_analysis:
             employee_id = employee["Employee_ID"]
             # Update employee's immediate attention status
-            db.query(Employee).filter(Employee.employee_id == employee_id).update(
+            db.query(Employee).filter(Employee.id == employee_id).update(
                 {"immediate_attention": True}
             )
             at_risk_employees.append(AtRiskEmployee(employee_id=employee_id))
@@ -692,13 +692,13 @@ async def process_leave_data(db: Session, df: pd.DataFrame) -> pd.DataFrame:
     for _, row in df.iterrows():
         employee = (
             db.query(Employee)
-            .filter(Employee.employee_id == row["employee_id"])
+            .filter(Employee.id == row["Employee_ID"])
             .first()
         )
         if not employee:
             # insert new employee with dummy data
             employee = Employee(
-                employee_id=str(row["employee_id"]),
+                id=str(row["Employee_ID"]),
                 name="Jake Doe",  # Placeholder, should be replaced with actual name
                 email="jakedoe@example.com",
                 hashed_password=get_password_hash("dummyhashedpassword"),
@@ -719,10 +719,10 @@ async def process_leave_data(db: Session, df: pd.DataFrame) -> pd.DataFrame:
 
         leave = Leave(
             employee_id=str(employee.id),
-            leave_type=str(row["leave_type"]),
-            start_date=datetime.strptime(row["start_date"], "%Y-%m-%d").date(),
-            end_date=datetime.strptime(row["end_date"], "%Y-%m-%d").date(),
-            leave_days=int(row["leave_days"]),
+            leave_type=str(row["Leave_Type"]),
+            start_date=datetime.strptime(row["Leave_Start_Date"], "%Y-%m-%d").date(),
+            end_date=datetime.strptime(row["Leave_End_Date"], "%Y-%m-%d").date(),
+            leave_days=int(row["Leave_Days"]),
         )
 
         db.add(leave)
@@ -739,12 +739,12 @@ async def process_activity_data(db: Session, df: pd.DataFrame) -> pd.DataFrame:
     for _, row in df.iterrows():
         employee = (
             db.query(Employee)
-            .filter(Employee.employee_id == row["employee_id"])
+            .filter(Employee.id == row["Employee_ID"])
             .first()
         )
         if not employee:
             employee = Employee(
-                employee_id=str(row["employee_id"]),
+                id=str(row["Employee_ID"]),
                 name="Jake Doe",  # Placeholder, should be replaced with actual name
                 email="jakedoe@example.com",
                 hashed_password=get_password_hash("dummyhashedpassword"),
@@ -764,12 +764,12 @@ async def process_activity_data(db: Session, df: pd.DataFrame) -> pd.DataFrame:
             # Refresh the employee object to get the new ID
 
         activity = Activity(
-            employee_id=str(employee.id),
-            date=datetime.strptime(row["date"], "%Y-%m-%d").date(),
-            hours_worked=float(row["hours_worked"]),
-            meetings_attended=int(row["meetings_attended"]),
-            emails_sent=int(row["emails_sent"]),
-            teams_messages_sent=int(row["teams_messages_sent"]),
+            id=str(employee.id),
+            date=datetime.strptime(row["Date"], "%Y-%m-%d").date(),
+            hours_worked=float(row["Work_Hours"]),
+            meetings_attended=int(row["Meetings_Attended"]),
+            emails_sent=int(row["Emails_Sent"]),
+            teams_messages_sent=int(row["Teams_Messages_Sent"]),
         )
 
         db.add(activity)
@@ -786,12 +786,12 @@ async def process_rewards_data(db: Session, df: pd.DataFrame) -> pd.DataFrame:
     for _, row in df.iterrows():
         employee = (
             db.query(Employee)
-            .filter(Employee.employee_id == row["employee_id"])
+            .filter(Employee.id == row["Employee_ID"])
             .first()
         )
         if not employee:
             employee = Employee(
-                employee_id=str(row["employee_id"]),
+                id=str(row["Employee_ID"]),
                 name="Jake Doe",  # Placeholder, should be replaced with actual name
                 email="jakedoe@example.com",
                 hashed_password=get_password_hash("dummyhashedpassword"),
@@ -831,12 +831,12 @@ async def process_performance_data(db: Session, df: pd.DataFrame) -> pd.DataFram
     for _, row in df.iterrows():
         employee = (
             db.query(Employee)
-            .filter(Employee.employee_id == row["employee_id"])
+            .filter(Employee.id == row["Employee_ID"])
             .first()
         )
         if not employee:
             employee = Employee(
-                employee_id=str(row["employee_id"]),
+                id=str(row["Employee_ID"]),
                 name="Jake Doe",  # Placeholder, should be replaced with actual name
                 email="jakedoe@example.com",
                 hashed_password=get_password_hash("dummyhashedpassword"),
@@ -856,7 +856,7 @@ async def process_performance_data(db: Session, df: pd.DataFrame) -> pd.DataFram
             # Refresh the employee object to get the new ID
 
         performance = PerformanceData(
-            employee_id=str(employee.id),
+            id=str(employee.id),
             review_period=str(row["Review_Period"]),
             performance_rating=int(row["Performance_Rating"]),
             manager_feedback=str(row["Manager_Feedback"]),
@@ -877,12 +877,12 @@ async def process_vibemeter_data(db: Session, df: pd.DataFrame) -> pd.DataFrame:
     for _, row in df.iterrows():
         employee = (
             db.query(Employee)
-            .filter(Employee.employee_id == row["employee_id"])
+            .filter(Employee.id == row["Employee_ID"])
             .first()
         )
         if not employee:
             employee = Employee(
-                employee_id=str(row["employee_id"]),
+                id=str(row["Employee_ID"]),
                 name="Jake Doe",  # Placeholder, should be replaced with actual name
                 email="jakedoe@example.com",
                 hashed_password=get_password_hash("dummyhashedpassword"),
@@ -926,12 +926,12 @@ async def process_onboarding_data(db: Session, df: pd.DataFrame) -> pd.DataFrame
         # Check if employee already exists
         existing = (
             db.query(Employee)
-            .filter(Employee.employee_id == row["employee_id"])
+            .filter(Employee.id == row["Employee_ID"])
             .first()
         )
         if existing:
             employee = Employee(
-                employee_id=str(row["employee_id"]),
+                id=str(row["Employee_ID"]),
                 name="Jake Doe",  # Placeholder, should be replaced with actual name
                 email="jakedoe@example.com",
                 hashed_password=get_password_hash("dummyhashedpassword"),
@@ -952,7 +952,7 @@ async def process_onboarding_data(db: Session, df: pd.DataFrame) -> pd.DataFrame
 
         # Create new employee
         employee = Onboarding(
-            employee_id=str(row["employee_id"]),
+            employee_id=str(row["Employee_ID"]),
             onboarding_feedback=str(row["Onboarding_Feedback"]),
             joining_date=datetime.strptime(row["Joining_Date"], "%Y-%m-%d").date(),
             mentor_assigned=bool(row["Mentor_Assigned"]),
