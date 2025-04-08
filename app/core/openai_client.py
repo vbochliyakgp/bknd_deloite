@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 import json
 import logging
 from openai.types.chat import ChatCompletionMessageParam
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +50,7 @@ class OpenAIClient:
 
             # Call OpenAI API with updated format
             response = await self.client.chat.completions.create(
-                model="gpt-4",  # or another appropriate model
+                model="gpt-4o",  # or another appropriate model
                 messages=formatted_messages,
                 temperature=0.7,
                 max_tokens=500,
@@ -62,42 +63,54 @@ class OpenAIClient:
                             "parameters": {
                                 "type": "object",
                                 "properties": {
-                                    "response_text": {
-                                        "type": "string",
-                                        "description": "The AI response to the employee",
+                                    "content": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "object",
+                                            "properties": {
+                                                "text": {
+                                                    "type": "string",
+                                                    "description": "The AI response to the employee"
+                                                }
+                                            }
+                                        },
+                                        "description": "The AI response to the employee"
                                     },
-                                    "escalation_recommended": {
+                                    "hr_escalation": {
                                         "type": "boolean",
-                                        "description": "Whether the employee's message indicates a situation that should be escalated to HR",
+                                        "description": "Whether the employee's message indicates a situation that should be escalated to HR"
                                     },
                                     "escalation_reason": {
                                         "type": "string",
-                                        "description": "The reason for escalation, if recommended",
+                                        "description": "The reason for escalation, if recommended"
                                     },
-                                    "suggested_replies": {
+                                    "suggestions": {
                                         "type": "array",
                                         "items": {"type": "string"},
-                                        "description": "Suggested quick replies for the employee to choose from",
+                                        "description": "Personalized suggestions for the employee"
                                     },
-                                    "sentiment_analysis": {
-                                        "type": "object",
-                                        "properties": {
-                                            "primary_emotion": {
-                                                "type": "string",
-                                                "description": "Primary emotion detected in employee's message",
-                                            },
-                                            "urgency_level": {
-                                                "type": "integer",
-                                                "description": "Urgency level (1-5) of addressing the employee's concern",
-                                            },
-                                        },
+                                    "risk_factors": {
+                                        "type": "array",
+                                        "items": {"type": "string"},
+                                        "description": "List of key risk factors identified"
                                     },
+                                    "risk_score": {
+                                        "type": "number",
+                                        "description": "Risk score (0-10) based on employee data and conversation"
+                                    },
+                                    "isComplete": {
+                                        "type": "boolean",
+                                        "description": "Whether the conversation has gathered enough information and is complete"
+                                    }
                                 },
                                 "required": [
-                                    "response_text",
-                                    "escalation_recommended",
-                                    "suggested_replies",
-                                ],
+                                    "content",
+                                    "hr_escalation",
+                                    "suggestions",
+                                    "risk_factors",
+                                    "risk_score",
+                                    "isComplete"
+                                ]
                             },
                         },
                     }
@@ -113,11 +126,13 @@ class OpenAIClient:
                 function_args = json.loads(tool_call.function.arguments)
 
                 return {
-                    "content": function_args["response_text"],
-                    "escalation_recommended": function_args["escalation_recommended"],
+                    "content": function_args["content"],
+                    "hr_escalation": function_args["hr_escalation"],
                     "escalation_reason": function_args.get("escalation_reason", ""),
-                    "suggested_replies": function_args["suggested_replies"],
-                    "sentiment_analysis": function_args.get("sentiment_analysis", {}),
+                    "suggestions": function_args["suggestions"],
+                    "risk_factors": function_args["risk_factors"],
+                    "risk_score": function_args["risk_score"],
+                    "isComplete": function_args["isComplete"]
                 }
             else:
                 raise ValueError("No tool call found in the response")
@@ -126,15 +141,17 @@ class OpenAIClient:
             logger.error(f"Error generating OpenAI response: {str(e)}")
             # Fallback response
             return {
-                "content": "I'm sorry, I'm having trouble processing that right now. Could you please try again or contact HR directly if you need immediate assistance?",
-                "escalation_recommended": False,
+                "content": [{"text": "I'm sorry, I'm having trouble processing that right now. Could you please try again or contact HR directly if you need immediate assistance?"}],
+                "hr_escalation": False,
                 "escalation_reason": "",
-                "suggested_replies": [
-                    "Yes, I'll try again",
-                    "I'll contact HR directly",
-                    "Can you help me with something else?",
+                "suggestions": [
+                    "Try again later", 
+                    "Contact HR directly",
+                    "Seek support from your manager"
                 ],
-                "sentiment_analysis": {},
+                "risk_factors": ["System error"],
+                "risk_score": 0,
+                "isComplete": False
             }
 
     def _create_system_prompt(self, employee_data: Dict[str, Any]) -> str:
@@ -258,7 +275,38 @@ class OpenAIClient:
         5. Provide supportive suggestions
         6. Thank them for their time
 
-        [Question bank, risk score calc, and response format remain same...]
+        QUESTION BANK (use where relevant):
+        - How have you been feeling at work lately?
+        - I notice your Vibe Score indicates you might be feeling [emotion]. Would you like to talk about it?
+        - What aspects of your work environment would you like to see improved?
+        - Is there anything specific causing you stress or frustration?
+        - How do you feel about your work-life balance?
+        - Is there any support you need from your manager or team?
+        - How comfortable do you feel discussing concerns with your manager?
+        - Are there any resources or tools that would help you in your role?
+        - What would make you feel more valued or recognized?
+
+        RISK SCORE CALCULATION:
+        1. Start with a base score of 0
+        2. Add points based on different factors:
+           - Vibe Score: Add 3 points if ≤ criticalScore, 2 points if ≤ concerningScore
+           - Emotion Zone: Add 2 points if in targetEmotionZones
+           - Work Hours: Add 2 points if ≥ critical, 1 point if ≥ concerning
+           - Meeting Load: Add 1 point if ≥ concerning
+           - Leave Usage: Add 1 point if ≤ insufficient
+           - Performance: Add 2 points if ≤ concerning
+           - Rewards: Add 0.5 points if ≤ insufficient
+        3. Add 1-3 points based on the content of their responses (subjective assessment)
+        4. Maximum score is 10
+
+        OUTPUT STRUCTURE:
+        Your response should include:
+        1. Your conversation with the employee
+        2. A risk score (0-10)
+        3. List of key risk factors identified
+        4. Personalized suggestions
+        5. Whether HR escalation is recommended (true if risk score ≥ escalationThreshold)
+        6. Whether the conversation is complete (true/false)
     """
         return system_prompt
 

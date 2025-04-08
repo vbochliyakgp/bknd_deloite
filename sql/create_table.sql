@@ -14,8 +14,8 @@ CREATE TABLE IF NOT EXISTS employees (
     user_type user_type_enum NOT NULL,
     profile_image VARCHAR(255),
     wellness_check_status wellness_check_status_enum NOT NULL DEFAULT 'not_received',
-    last_vibe VARCHAR(20) NOT NULL,
-    immediate_attention BOOLEAN NOT NULL
+    last_vibe VARCHAR(20),
+    immediate_attention BOOLEAN NOT NULL DEFAULT FALSE,
 );
 
 CREATE TABLE IF NOT EXISTS chat_sessions (

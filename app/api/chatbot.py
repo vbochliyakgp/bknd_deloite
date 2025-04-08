@@ -9,6 +9,7 @@ from app.dependencies import get_db, get_current_employee
 from app.models.chat_session import ChatSession
 from app.models.message import Message
 from app.models.employee import Employee
+
 from app.schemas.chat import (
     ChatSessionCreate,
     ChatSessionResponse,
@@ -86,96 +87,61 @@ async def send_message(
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     
-    history = db.query(Message).filter(Message.session_id == session_id).all()
+    # Save the user message
+    user_msg = Message(session_id=session_id, question=msg.question, answer="")
+    db.add(user_msg)
+    db.commit()
+    db.refresh(user_msg)
     
-    if history:
-        
-
-        user_msg = Message(session_id=session_id, question=msg.question, answer="")
-        db.add(user_msg)
-        db.commit()
-        db.refresh(user_msg)
-
-    # history = db.query(Message).filter(Message.session_id == session_id).all()
-    
-        prev_messages = [
-            {"question": m.question, "answer": m.answer} for m in history
-        ]
-
-        employee_data = AnalyticsService.get_employee_data(db, current_employee.id)
-        ai_response = await openai_client.generate_response(
-            db=db,
-            employee_id=current_employee.id,
-            chat_session_id=session_id,
-            message=msg.question,
-            previous_messages=prev_messages,
-            employee_data=employee_data,
-        )
-
-        bot_msg = Message(
-            session_id=session_id,
-            question=msg.question,
-            answer=ai_response["content"][0]["text"]
-        )
-        db.add(bot_msg)
-
-        if ai_response.get("escalation_recommended"):
-            session.escalated = True
-            session.suggestions = ai_response.get("escalation_reason")
-            await EmailService.send_hr_notification(
-                employee_name=str(current_employee.name),
-                session_id=session_id,
-                reason=session.suggestions,
-        )
-
-        db.commit()
-        db.refresh(bot_msg)
-
-        return [
-            MessageResponse.from_orm(user_msg),
-            MessageResponse.from_orm(bot_msg)
-        ]
-        
+    # Get employee data
     employee_data = AnalyticsService.get_employee_data(db, current_employee.id)
- 
-    ai_question = await openai_client.generate_response(
+    
+    # Get message history for context
+    history = db.query(Message).filter(Message.session_id == session_id).all()
+    prev_messages = [
+        {"question": m.question, "answer": m.answer} for m in history
+    ]
+    
+    # Call AI with history
+    ai_response = await openai_client.generate_response(
         db=db,
         employee_id=current_employee.id,
         chat_session_id=session_id,
         message=msg.question,
-        previous_messages=[],
+        previous_messages=prev_messages,
         employee_data=employee_data,
-    
-    )
-    #here question is the user generated question and answer is the ai generated response
-    bot_msg_first = Message(
-            session_id=session_id,
-            question=ai_question["reply"],
-            answer=""
     )
     
+    # Create and save the bot message
+    bot_msg = Message(
+        session_id=session_id,
+        question="",
+        answer=ai_response["content"][0]["text"]
+    )
     db.add(bot_msg)
     
+    # Update session data if conversation is complete
+    if ai_response.get("isComplete", False):
+        session.risk_factors = ", ".join(ai_response.get("risk_factors", []))
+        session.risk_score = ai_response.get("risk_score", 0)
+        session.suggestions = ", ".join(ai_response.get("suggestions", []))
+    
+    # Handle escalation recommendation
+    if ai_response.get("hr_escalation", False):
+        session.escalated = True
+        await EmailService.send_hr_notification(
+            employee_name=str(current_employee.name),
+            session_id=session_id,
+            reason=session.suggestions,
+        )
     
     db.commit()
     db.refresh(bot_msg)
     
     return [
-            MessageResponse.from_orm(bot_msg_first)
-        ]
-    
-    
-    
-        
-  
-    
-    
-        
-    
-        
-    
-
-
+        MessageResponse.from_orm(user_msg),
+        MessageResponse.from_orm(bot_msg)
+    ]
 
 @router.post("/sessions/{session_id}/end", response_model=ChatSessionResponse)
 async def end_chat_session(
